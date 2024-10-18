@@ -40,3 +40,6 @@ eval "$(starship init bash)"
 
 # kubectl krew
 export PATH="${KREW_ROOT:-$HOME/.krew}/bin:$PATH"
+
+# Created by `pipx` on 2024-10-14 02:15:33
+export PATH="$PATH:/home/lta/.local/bin"

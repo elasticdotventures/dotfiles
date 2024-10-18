@@ -24,7 +24,7 @@ ra_run:
 test:
     cargo test -- --nocapture
 
-O# trigger & run any action ci/action locally
+# trigger & run any action ci/action locally
 # don't specify workflow or job then script will display ./github/workflows using fzf
 gh-action workflow="" job="":
     cd {{repo-root}} && ./just-run-gh-action.sh {{workflow}} {{job}}
