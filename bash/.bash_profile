@@ -117,13 +117,20 @@ export PATH="${KREW_ROOT:-$HOME/.krew}/bin:$PATH"
 if command -v podman &> /dev/null; then
     alias docker=podman
     export PODMAN_MACHINE_NAME=$( podman machine list --format '{{.Name}}' | grep '*' | tr -d '*' )
-    # settings on sm3lly before return to docker.
-    #export PODMAN_SOCKET=$(ls $XDG_RUNTIME_DIR/podman/podman.sock)
-    export PODMAN_SOCKET=$(podman machine inspect ${PODMAN_MACHINE_NAME} | jq -r '.[].ConnectionInfo.PodmanSocket.Path')
-    export PODMAN_HOST="unix://${PODMAN_SOCKET}"
-    export DOCKER_HOST=$PODMAN_HOST
-    export DOCKER_HOST=unix://$(podman info --format '{{.Host.RemoteSocket.Path}}');
-    # export DOCKER_HOST='unix:///home/brianh/.local/share/containers/podman/machine/qemu/podman.sock'
+    if [ -z "$PODMAN_MACHINE_NAME" ]; then
+        #echo "🐳 Podman machine not found, initializing default machine..."
+        #sudo podman machine init --rootful=true
+        #export PODMAN_MACHINE_NAME="podman-machine-default"
+        echo "🙈🐳 Podman machine name not set (this is probably fine)"
+    else
+        # settings on sm3lly before return to docker.
+        #export PODMAN_SOCKET=$(ls $XDG_RUNTIME_DIR/podman/podman.sock)
+        export PODMAN_SOCKET=$(podman machine inspect ${PODMAN_MACHINE_NAME} | jq -r '.[].ConnectionInfo.PodmanSocket.Path')
+        export PODMAN_HOST="unix://${PODMAN_SOCKET}"
+        export DOCKER_HOST=$PODMAN_HOST
+        export DOCKER_HOST=unix://$(podman info --format '{{.Host.RemoteSocket.Path}}');
+        # export DOCKER_HOST='unix:///home/brianh/.local/share/containers/podman/machine/qemu/podman.sock'
+    fi
 
 
     echo "✅🐳 podman"
@@ -216,7 +223,7 @@ fi
 # if [ -e /home/brianh/.nix-profile/etc/profile.d/nix.sh ]; then . /home/brianh/.nix-profile/etc/profile.d/nix.sh; fi # added by Nix installer
 
 ## setup a global uv
-if [ -f ~/.venv/bin/activate ] ; then 
+if [ -f ~/.venv/bin/activate ] ; then
     source .venv/bin/activate
     echo "🐍 ~/.venv/bin/activate"
 fi
