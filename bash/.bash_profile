@@ -224,6 +224,7 @@ fi
 ## I don't like nix
 # if [ -e /home/brianh/.nix-profile/etc/profile.d/nix.sh ]; then . /home/brianh/.nix-profile/etc/profile.d/nix.sh; fi # added by Nix installer
 
+<<<<<<< Updated upstream
 ## setup a global uv
 if [ -f ~/.venv/bin/activate ] ; then
     source .venv/bin/activate
@@ -249,3 +250,6 @@ if command -v pixi &> /dev/null; then
 fi
 
 echo "🐚 .bash_profile loaded"
+
+# kubectl shell completion
+source '/home/brianh/.kube/completion.bash.inc'
