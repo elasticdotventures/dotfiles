@@ -481,12 +481,12 @@ elif [ ! -x "$xfile" ] ; then
         return 0
     else
 
-        if ! has_fn_✅_存在 "toml_get" ; then
-            :   # toml_get doesn't exist.
-        elif [[ $( toml_get "b00t" "has.$xfile" ) = "" ]] ; then
-            log_📢_记录 "👍 $xfile"
-            # toml_set "b00t" "has.sudo" $( yyyymmdd )
-        fi
+        #if ! has_fn_✅_存在 "toml_get" ; then
+        #    :   # toml_get doesn't exist.
+        #elif [[ $( toml_get "b00t" "has.$xfile" ) = "" ]] ; then
+        #    log_📢_记录 "👍 $xfile"
+        #    # toml_set "b00t" "has.sudo" $( yyyymmdd )
+        #fi
         return 1
     fi
 }
@@ -724,11 +724,11 @@ elif [ "$(rand0 10)" -gt 5 ] ; then
 
     log_📢_记录 "lang: $LANG"
     log_📢_记录 "🥾📈 motd project stats, cleanup, tasks goes here. "
-
+    local skunk_x=0
     if [ -d .git ]; then
         gh issue list
-        local skunk_x=$(git grep "🦨" | wc -l)
-elif [ -d "$HOME/.dotfiles/.git" ] ; then
+        skunk_x=$(git grep "🦨" | wc -l)
+    elif [ -d "$HOME/.dotfiles/.git" ] ; then
 
         log_📢_记录 "🥾: found $HOME/.dotfiles/.git repo"
         # github client
@@ -748,7 +748,10 @@ elif [ -d "$HOME/.dotfiles/.git" ] ; then
     else
         log_📢_记录 "🥾🐙😔 no ~/.dotfiles/.git dir "`pwd`
     fi
-    log_📢_记录 "🦨: $skunk_x"
+
+    if [ "$skunk_x" -gt 0 ] ; then
+        log_📢_记录 "🥾🐙🦨: found $skunk_x 🦨 issues in this repo"
+    fi
 
 }
 
@@ -775,8 +778,9 @@ fi
 
 
 ## this must be sourced at the end
-source ~/.dotfiles/_b00t_/bash.🔨/_/toml-cli.sh
-toml_init
+## REMOVING TOML host storage .. keep for
+#source ~/.dotfiles/_b00t_/bash.🔨/_/toml-cli.sh
+#toml_init
 
 
 
@@ -799,10 +803,10 @@ elif [ -f "./dockerenv" ] ; then
         # https://stackoverflow.com/questions/23513045/how-to-check-if-a-process-is-running-inside-docker-container#:~:text=To%20check%20inside%20a%20Docker,%2Fproc%2F1%2Fcgroup%20.
         log_📢_记录 "🐳😁 found DOCKER"
 elif [ -f "$SUDO_CMD" ] ; then
-        if [[ -z $( toml_get "b00t" "has.sudo" )  ]] ; then
-            log_📢_记录 "🥳 found sudo"
+        #if [[ -z $( toml_get "b00t" "has.sudo" )  ]] ; then
+        log_📢_记录 "🥳 found sudo"
             # toml_set "b00t" "has.sudo" `ymd_hms`
-        fi
+        #fi
     else
         log_📢_记录 "🐭 missed SUDO, try running _b00t_ inside docker."
         SUDO_CMD=""
@@ -877,17 +881,17 @@ if [ -f "__b00t__.sh" ]; then
 fi
 
 # b00t command aliases and functions
-if [ -f "~/.cargo/bin/b00t-cli" ]; then
+if [ -x ~/.cargo/bin/b00t-cli ]; then
     # b00t-cli is installed, use it.
     export PATH="$PATH:~/.cargo/bin"
     alias b00t='~/.cargo/bin/b00t-cli'
 else
     # b00t-cli is not installed, try to install it.
-    if [ -f "$HOME/.dotfiles/_b00t_/bash.🔨/_/b00t-cli.sh" ]; then
-        source "$HOME/.dotfiles/_b00t_/bash.🔨/_/b00t-cli.sh"
-    else
+    # if [ -f "$HOME/.dotfiles/_b00t_/bash.🔨/_/b00t-cli.sh" ]; then
+    #     source "$HOME/.dotfiles/_b00t_/bash.🔨/_/b00t-cli.sh"
+    # else
         echo "🥾💔 b00t-cli not found, please install it."
-    fi
+    # fi
 fi
 
 # test for alias b00t exists
@@ -907,7 +911,7 @@ function _b00t_check() {
     done
 
     if [ $outdated_found -ne 0 ]; then
-        echo "\n🥾💡 Some tools are out of date or missing. Run 'b00t up' to update them."
+        echo "🥾💡 Some tools are out of date or missing. Run 'b00t up' to update them."
     fi
 }
 
