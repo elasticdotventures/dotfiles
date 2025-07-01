@@ -1,6 +1,6 @@
 [b00t]
 name = "b00t"
-desires = "0.2.0"
+desires = "0.2.1"
 install = "cd /home/brianh/.dotfiles/boot-cli && cargo install --path ."
 update = "cd /home/brianh/.dotfiles/boot-cli && cargo install --path ."
 version = "b00t --version"

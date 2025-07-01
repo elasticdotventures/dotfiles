@@ -8,7 +8,6 @@ use duct::cmd;
 use semver::Version;
 
 #[derive(Parser)]
-#[clap(name = "_b00t_")]
 #[clap(version, about, long_about = None)]
 struct Cli {
     #[clap(subcommand)]
