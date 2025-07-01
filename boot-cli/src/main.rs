@@ -60,7 +60,7 @@ struct BootConfig {
     install: String,
     update: Option<String>,
     version: String,
-    version_regex: String,
+    version_regex: Option<String>,
     hint: String,
 }
 
@@ -144,7 +144,7 @@ fn get_installed_version(command: &str, path: &str) -> Option<String> {
     if let Ok(config) = get_config(command, path) {
         let version_cmd = &config.b00t.version;
         if let Ok(output) = cmd!("bash", "-c", version_cmd).read() {
-            let re = Regex::new(&config.b00t.version_regex).unwrap();
+            let re = Regex::new(config.b00t.version_regex.as_deref().unwrap_or("\\d+\\.\\d+\\.\\d+")).unwrap();
             if let Some(caps) = re.captures(&output) {
                 return Some(caps[0].to_string());
             }
