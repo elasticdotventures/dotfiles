@@ -1,7 +1,7 @@
 
 use clap::Parser;
 use serde::Deserialize;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::fs;
 use regex::Regex;
 use duct::cmd;
