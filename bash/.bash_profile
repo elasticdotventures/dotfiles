@@ -251,4 +251,9 @@ fi
 # TODO: check if go is installed
 export PATH=$PATH:/usr/local/go/bin
 
+if [ -d ~/.krew ] ; then
+	export PATH="${KREW_ROOT:-$HOME/.krew}/bin:$PATH"
+fi
+
+
 echo "🐚 .bash_profile loaded"
