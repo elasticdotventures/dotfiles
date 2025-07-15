@@ -281,6 +281,6 @@ fi
 export PATH=$PATH:/usr/local/go/bin
 
 
-alias gemini='npx https://github.com/google-gemini/gemini-clial'
+alias gemini='npx https://github.com/google-gemini/gemini-cli'
 
 echo "🐚 .bash_profile loaded"
