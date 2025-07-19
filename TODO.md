@@ -180,3 +180,8 @@ graph TD
 ```
 https://github.com/cocogitto/cocogitto
 
+ code --list-extensions
+
+
+search the codebase for _b00t_INSPIRATION_FILE="$_B00T_Path/./r3src_资源/inspiration.json"
+
