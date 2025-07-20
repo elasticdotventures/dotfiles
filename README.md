@@ -38,6 +38,7 @@ it detects & installs most of the tools and is a good place
 _b00t_ is a perpetually unfinished, WIP & strongly opinionated DIFM (Do It For me)
 low friction setup ..
 
+	detect vscode and various ai tooling
 	rich WSL2 ubuntu unix cli, vscode, github + gh cli
 	llvm/clang, modern python, rust, k8s, docker (was podman) ..
 	terraform (tofu), azure, aws, g8s, cloudflare

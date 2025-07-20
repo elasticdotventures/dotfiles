@@ -185,3 +185,8 @@ https://github.com/cocogitto/cocogitto
 
 search the codebase for _b00t_INSPIRATION_FILE="$_B00T_Path/./r3src_资源/inspiration.json"
 
+
+
+
+ alias ccr-router="ccr start"
+alias ccrclaude="ANTHROPIC_BASE_URL=http://localhost:3456 claude"

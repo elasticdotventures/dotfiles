@@ -72,6 +72,7 @@ function b00t() {
     else
         # b00t-cli is not installed, use the script.
         log_📢_记录 "🥾: b00t-cli not found, using script"
+        _b00t_init_🥾_开始 "$@"
     fi
     return 0
 }
@@ -341,11 +342,28 @@ function _b00t_init_🥾_开始() {
     local param=${args[0]}
 
     export _b00t_="$0"
-
     if [ $_b00t_ == "/c0de/_b00t_/_b00t_.bashrc" ] ; then
         log_📢_记录 ""
         log_📢_记录 "usage: source /c0de/_b00t_/_b00t_.bashrc"
         exit
+    fi
+
+    # if b00t-cli isn't installed in the path,   # test for cargo, if cargo is installed AND
+    # ~/.dotfiles/b00t-cli exists, then compile and install it
+
+    if command -v b00t-cli &> /dev/null ; then
+        log_📢_记录 "🥾👍"
+        return 0
+    elif command -v cargo &> /dev/null && [ -d "$HOME/.dotfiles/b00t-cli" ] ; then
+        log_📢_记录 "🥾🦀 found cargo, will build + install b00t-cli"
+        (cd "$HOME/.dotfiles/b00t-cli" && cargo build --release)
+        if [ $? -eq 0 ] ; then
+            log_📢_记录 "🥾 b00t-cli compiled successfully"
+            (cd "$HOME/.dotfiles/b00t-cli" && cargo install --path .)
+            return 0
+        else
+            log_📢_记录 "🥾🦨 b00t-cli build failed"
+        fi
     fi
 
     local PARENT_COMMAND_STR="👽env-notdetected"
@@ -367,7 +385,6 @@ function _b00t_init_🥾_开始() {
     else
         log_📢_记录 "🥾👵 from: $PARENT_COMMAND_STR"
     fi
-
 
     log_📢_记录 "🥾 -V: $_b00t_VERSION  init: $_b00t_"
     if [ -n "${@}" ] ; then
