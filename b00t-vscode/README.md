@@ -12,17 +12,17 @@ Create a command-line interface (CLI) tool using TypeScript that programmaticall
   ```bash
   mkdir copilot-auth-cli
   cd copilot-auth-cli
-  npm init -y
+  pnpm init -y
   ```
 
 - [ ] **Install Dependencies:**
   - [ ] Install TypeScript & Execution Tools:
     ```bash
-    npm install --save-dev typescript ts-node @types/node
+    pnpm install --save-dev typescript ts-node @types/node
     ```
   - [ ] Install CLI Argument Parser:
     ```bash
-    npm install commander
+    pnpm install commander
     ```
 
 - [ ] **Initialize TypeScript Configuration:**

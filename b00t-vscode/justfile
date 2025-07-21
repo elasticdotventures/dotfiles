@@ -1,0 +1,41 @@
+default:
+    @echo "Usage: just [install|build|package|add|remove|clean|deploy]"
+
+install:
+    @echo "Installing dependencies with npm..."
+    npm install
+    npm install -g @vscode/vsce@latest
+
+build:
+    @echo "Building extension..."
+    npx tsc -p .
+
+package:
+    @echo "Packaging extension..."
+    npx vsce package
+
+add:
+    @echo "Installing extension into VSCode..."
+    code --install-extension b00t-vscode-0.0.1.vsix
+
+remove:
+    @echo "Uninstalling extension from VSCode..."
+    code --uninstall-extension b00t-vscode
+
+clean:
+    @echo "Removing packaged .vsix files, node_modules, lockfiles, build outputs, and pnpm/bun artifacts..."
+    rm -f *.vsix
+    rm -rf node_modules
+    rm -f pnpm-lock.yaml
+    rm -f yarn.lock
+    rm -rf .pnpm-store
+    rm -rf out dist
+    rm -rf bun.lockb
+    rm -rf .bun
+    @echo "Clean complete."
+
+
+deploy:
+    @echo "Deploying extension..."
+    npx vsce publish
+
