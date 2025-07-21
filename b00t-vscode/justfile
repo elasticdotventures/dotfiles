@@ -5,6 +5,7 @@ install:
     @echo "Installing dependencies with npm..."
     npm install
     npm install -g @vscode/vsce@latest
+    @echo "to install the plugin: just build && just add"
 
 build:
     @echo "Building extension..."
@@ -14,9 +15,21 @@ package:
     @echo "Packaging extension..."
     npx vsce package
 
+EXT_NAME := "b00t-vscode"
+EXT_VER := `jq -r .version package.json`
+VSCODE := "../vscode.sh"
+
+build-add:
+    @echo "Building and packaging extension..."
+    just build
+    just package
+    just add
+
+
 add:
     @echo "Installing extension into VSCode..."
-    code --install-extension b00t-vscode-0.0.1.vsix
+    {{VSCODE}} --install-extension {{EXT_NAME}}-{{EXT_VER}}.vsix --force
+
 
 remove:
     @echo "Uninstalling extension from VSCode..."
@@ -34,8 +47,6 @@ clean:
     rm -rf .bun
     @echo "Clean complete."
 
-
 deploy:
     @echo "Deploying extension..."
     npx vsce publish
-
