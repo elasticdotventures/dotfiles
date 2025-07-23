@@ -44,6 +44,7 @@ b00t-cli is a Rust-based command-line tool for managing software versions and in
 **MCP (Model Context Protocol) Management**:
 - `mcp add <json>`: Parse JSON and create `.mcp-json.toml` configuration
 - `mcp add --dwiw <json>`: "Do What I Want" mode - strips comments from JSON
+- `mcp list`: Show all available MCP server configurations
 - `vscode install mcp <name>`: Install MCP server to VSCode via `code --add-mcp`
 - `claude-code install mcp <name>`: Install MCP server to Claude Code via `claude-code config add-mcp`
 - One source of truth (TOML files), multiple export targets

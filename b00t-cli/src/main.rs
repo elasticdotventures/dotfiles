@@ -75,6 +75,8 @@ enum McpCommands {
         #[clap(long, help = "Do What I Want - auto-cleanup and format JSON")]
         dwiw: bool,
     },
+    #[clap(about = "List available MCP server configurations")]
+    List,
 }
 
 #[derive(Parser)]
@@ -144,6 +146,12 @@ fn main() {
             McpCommands::Add { json, dwiw } => {
                 if let Err(e) = mcp_add(json, *dwiw, &cli.path) {
                     eprintln!("Error adding MCP server: {}", e);
+                    std::process::exit(1);
+                }
+            }
+            McpCommands::List => {
+                if let Err(e) = mcp_list(&cli.path) {
+                    eprintln!("Error listing MCP servers: {}", e);
                     std::process::exit(1);
                 }
             }
@@ -345,6 +353,65 @@ fn mcp_add(json: &str, dwiw: bool, path: &str) -> Result<()> {
     println!("MCP server '{}' configuration saved.", server.name);
     println!("To install to VSCode: b00t-cli vscode install mcp {}", server.name);
     
+    Ok(())
+}
+
+fn mcp_list(path: &str) -> Result<()> {
+    let expanded_path = shellexpand::tilde(path).to_string();
+    let entries = match fs::read_dir(&expanded_path) {
+        Ok(entries) => entries,
+        Err(e) => {
+            anyhow::bail!("Error reading directory {}: {}", &expanded_path, e);
+        }
+    };
+
+    let mut mcp_servers = Vec::new();
+
+    for entry in entries {
+        if let Ok(entry) = entry {
+            let entry_path = entry.path();
+            if let Some(file_name) = entry_path.file_name().and_then(|s| s.to_str()) {
+                if file_name.ends_with(".mcp-json.toml") {
+                    if let Some(server_name) = file_name.strip_suffix(".mcp-json.toml") {
+                        // Try to read the config to get details
+                        match get_mcp_config(server_name, path) {
+                            Ok(server) => {
+                                mcp_servers.push((server_name.to_string(), Some(server)));
+                            }
+                            Err(_) => {
+                                mcp_servers.push((server_name.to_string(), None));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if mcp_servers.is_empty() {
+        println!("No MCP server configurations found in {}", expanded_path);
+        println!("Use 'b00t-cli mcp add <json>' to add MCP server configurations.");
+    } else {
+        println!("Available MCP servers in {}:", expanded_path);
+        println!();
+        for (name, server) in mcp_servers {
+            match server {
+                Some(s) => {
+                    println!("📋 {} ({})", name, s.command);
+                    if !s.args.is_empty() {
+                        println!("   args: {}", s.args.join(" "));
+                    }
+                }
+                None => {
+                    println!("❌ {} (error reading config)", name);
+                }
+            }
+        }
+        println!();
+        println!("To install to VSCode: b00t-cli vscode install mcp <name>");
+        println!("To install to Claude Code: b00t-cli claude-code install mcp <name>");
+    }
+
     Ok(())
 }
 
