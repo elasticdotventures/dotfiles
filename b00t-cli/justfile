@@ -4,3 +4,21 @@ list-commands:
 # Run the b00t-cli with all passed arguments
 cli *args:
 	cargo run --bin b00t-cli -- {{args}}
+
+# Test MCP functionality with sample files
+test-mcp:
+	cargo run -- mcp add "$(cat samples/playwright.json)"
+	cargo run -- mcp add --dwiw "$(cat samples/with-comments.json)"
+	cargo run -- mcp add "$(cat samples/direct-format.json)"
+
+# Test VSCode integration (will show manual command if VSCode not available)
+test-vscode:
+	cargo run -- vscode install mcp playwright
+	cargo run -- vscode install mcp github
+	cargo run -- vscode install mcp filesystem
+
+# Test Claude Code integration (will show manual command if claude-code not available)
+test-claude-code:
+	cargo run -- claude-code install mcp playwright
+	cargo run -- claude-code install mcp github
+	cargo run -- claude-code install mcp filesystem

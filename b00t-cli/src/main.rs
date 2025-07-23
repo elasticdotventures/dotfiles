@@ -6,6 +6,10 @@ use std::fs;
 use regex::Regex;
 use duct::cmd;
 use semver::Version;
+use anyhow::{Result, Context};
+use b00t_cli::{McpServer, McpConfig, normalize_mcp_json};
+
+mod integration_tests;
 
 #[derive(Parser)]
 #[clap(version, about, long_about = None)]
@@ -45,6 +49,68 @@ enum Commands {
     },
     #[clap(about = "Update all commands")]
     Up,
+    #[clap(about = "MCP (Model Context Protocol) server management")]
+    Mcp {
+        #[clap(subcommand)]
+        mcp_command: McpCommands,
+    },
+    #[clap(about = "VSCode integration")]
+    Vscode {
+        #[clap(subcommand)]
+        vscode_command: VscodeCommands,
+    },
+    #[clap(about = "Claude Code integration")]
+    ClaudeCode {
+        #[clap(subcommand)]
+        claude_command: ClaudeCodeCommands,
+    },
+}
+
+#[derive(Parser)]
+enum McpCommands {
+    #[clap(about = "Add MCP server configuration")]
+    Add {
+        #[clap(help = "MCP server JSON configuration")]
+        json: String,
+        #[clap(long, help = "Do What I Want - auto-cleanup and format JSON")]
+        dwiw: bool,
+    },
+}
+
+#[derive(Parser)]
+enum VscodeCommands {
+    #[clap(about = "Install MCP server to VSCode")]
+    Install {
+        #[clap(subcommand)]
+        install_command: VscodeInstallCommands,
+    },
+}
+
+#[derive(Parser)]
+enum VscodeInstallCommands {
+    #[clap(about = "Install MCP server by name")]
+    Mcp {
+        #[clap(help = "Name of the MCP server to install")]
+        name: String,
+    },
+}
+
+#[derive(Parser)]
+enum ClaudeCodeCommands {
+    #[clap(about = "Install MCP server to Claude Code")]
+    Install {
+        #[clap(subcommand)]
+        install_command: ClaudeCodeInstallCommands,
+    },
+}
+
+#[derive(Parser)]
+enum ClaudeCodeInstallCommands {
+    #[clap(about = "Install MCP server by name")]
+    Mcp {
+        #[clap(help = "Name of the MCP server to install")]
+        name: String,
+    },
 }
 
 #[derive(Deserialize, Debug)]
@@ -63,6 +129,7 @@ struct BootConfig {
     hint: String,
 }
 
+
 fn main() {
     let cli = Cli::parse();
 
@@ -73,6 +140,34 @@ fn main() {
         Commands::Update { command } => update(command, &cli.path),
         Commands::Dot { command } => dot(command, &cli.path),
         Commands::Up => up(&cli.path),
+        Commands::Mcp { mcp_command } => match mcp_command {
+            McpCommands::Add { json, dwiw } => {
+                if let Err(e) = mcp_add(json, *dwiw, &cli.path) {
+                    eprintln!("Error adding MCP server: {}", e);
+                    std::process::exit(1);
+                }
+            }
+        },
+        Commands::Vscode { vscode_command } => match vscode_command {
+            VscodeCommands::Install { install_command } => match install_command {
+                VscodeInstallCommands::Mcp { name } => {
+                    if let Err(e) = vscode_install_mcp(name, &cli.path) {
+                        eprintln!("Error installing MCP server to VSCode: {}", e);
+                        std::process::exit(1);
+                    }
+                }
+            }
+        },
+        Commands::ClaudeCode { claude_command } => match claude_command {
+            ClaudeCodeCommands::Install { install_command } => match install_command {
+                ClaudeCodeInstallCommands::Mcp { name } => {
+                    if let Err(e) = claude_code_install_mcp(name, &cli.path) {
+                        eprintln!("Error installing MCP server to Claude Code: {}", e);
+                        std::process::exit(1);
+                    }
+                }
+            }
+        },
     }
 }
 
@@ -219,4 +314,113 @@ fn up(path: &str) {
             }
         }
     }
+}
+
+
+fn create_mcp_toml_config(server: &McpServer, path: &str) -> Result<()> {
+    let config = McpConfig {
+        mcp: server.clone(),
+    };
+
+    let toml_content = toml::to_string(&config)
+        .context("Failed to serialize MCP config to TOML")?;
+
+    let mut path_buf = PathBuf::new();
+    path_buf.push(shellexpand::tilde(path).to_string());
+    path_buf.push(format!("{}.mcp-json.toml", server.name));
+
+    fs::write(&path_buf, toml_content)
+        .context(format!("Failed to write MCP config to {}", path_buf.display()))?;
+
+    println!("Created MCP config: {}", path_buf.display());
+    Ok(())
+}
+
+
+fn mcp_add(json: &str, dwiw: bool, path: &str) -> Result<()> {
+    let server = normalize_mcp_json(json, dwiw)?;
+    
+    create_mcp_toml_config(&server, path)?;
+    
+    println!("MCP server '{}' configuration saved.", server.name);
+    println!("To install to VSCode: b00t-cli vscode install mcp {}", server.name);
+    
+    Ok(())
+}
+
+fn get_mcp_config(name: &str, path: &str) -> Result<McpServer> {
+    let mut path_buf = PathBuf::new();
+    path_buf.push(shellexpand::tilde(path).to_string());
+    path_buf.push(format!("{}.mcp-json.toml", name));
+
+    if !path_buf.exists() {
+        anyhow::bail!("MCP server '{}' not found. Use 'b00t-cli mcp add' to create it first.", name);
+    }
+
+    let content = fs::read_to_string(&path_buf)
+        .context(format!("Failed to read MCP config from {}", path_buf.display()))?;
+    
+    let config: McpConfig = toml::from_str(&content)
+        .context("Failed to parse MCP config TOML")?;
+
+    Ok(config.mcp)
+}
+
+fn vscode_install_mcp(name: &str, path: &str) -> Result<()> {
+    let server = get_mcp_config(name, path)?;
+    
+    let vscode_json = serde_json::json!({
+        "name": server.name,
+        "command": server.command,
+        "args": server.args
+    });
+
+    let json_str = serde_json::to_string(&vscode_json)
+        .context("Failed to serialize JSON for VSCode")?;
+
+    let result = cmd!("code", "--add-mcp", &json_str).run();
+    
+    match result {
+        Ok(_) => {
+            println!("Successfully installed MCP server '{}' to VSCode", server.name);
+            println!("VSCode command: code --add-mcp '{}'", json_str);
+        },
+        Err(e) => {
+            eprintln!("Failed to install MCP server to VSCode: {}", e);
+            eprintln!("Manual command: code --add-mcp '{}'", json_str);
+            std::process::exit(1);
+        }
+    }
+    
+    Ok(())
+}
+
+fn claude_code_install_mcp(name: &str, path: &str) -> Result<()> {
+    let server = get_mcp_config(name, path)?;
+    
+    // Claude Code uses claude-code config add-mcp command
+    let claude_json = serde_json::json!({
+        "name": server.name,
+        "command": server.command,
+        "args": server.args
+    });
+
+    let json_str = serde_json::to_string(&claude_json)
+        .context("Failed to serialize JSON for Claude Code")?;
+
+    let result = cmd!("claude-code", "config", "add-mcp", &json_str).run();
+    
+    match result {
+        Ok(_) => {
+            println!("Successfully installed MCP server '{}' to Claude Code", server.name);
+            println!("Claude Code command: claude-code config add-mcp '{}'", json_str);
+        },
+        Err(e) => {
+            eprintln!("Failed to install MCP server to Claude Code: {}", e);
+            eprintln!("Manual command: claude-code config add-mcp '{}'", json_str);
+            std::process::exit(1);
+        }
+    }
+    
+    Ok(())
 }
