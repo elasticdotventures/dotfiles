@@ -25,6 +25,7 @@ b00t-cli mcp add "$(cat samples/direct-format.json)"
 
 # List available MCP servers
 b00t-cli mcp list
+b00t-cli mcp list --json  # JSON output format
 ```
 
 ### Step 2: Install to specific clients

@@ -11,6 +11,7 @@ test-mcp:
 	cargo run -- mcp add --dwiw "$(cat samples/with-comments.json)"
 	cargo run -- mcp add "$(cat samples/direct-format.json)"
 	cargo run -- mcp list
+	cargo run -- mcp list --json
 
 # Test VSCode integration (will show manual command if VSCode not available)
 test-vscode:

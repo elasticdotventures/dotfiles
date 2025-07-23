@@ -14,6 +14,20 @@ pub struct McpConfig {
     pub mcp: McpServer,
 }
 
+#[derive(Serialize, Debug)]
+pub struct McpListOutput {
+    pub servers: Vec<McpListItem>,
+    pub path: String,
+}
+
+#[derive(Serialize, Debug)]
+pub struct McpListItem {
+    pub name: String,
+    pub command: Option<String>,
+    pub args: Option<Vec<String>>,
+    pub error: Option<String>,
+}
+
 pub fn clean_json_for_dwiw(input: &str) -> String {
     let comment_regex = Regex::new(r"^\s*//.*$").unwrap();
     

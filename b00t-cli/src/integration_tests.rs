@@ -70,7 +70,7 @@ mod integration_tests {
         let temp_path = temp_dir.path().to_str().unwrap();
 
         // mcp_list should not error on empty directory
-        let result = crate::mcp_list(temp_path);
+        let result = crate::mcp_list(temp_path, false);
         assert!(result.is_ok());
     }
 
@@ -86,8 +86,11 @@ mod integration_tests {
         mcp_add(json1, false, temp_path).unwrap();
         mcp_add(json2, false, temp_path).unwrap();
 
-        // List should work without error
-        let result = crate::mcp_list(temp_path);
+        // List should work without error (both text and JSON)
+        let result = crate::mcp_list(temp_path, false);
         assert!(result.is_ok());
+        
+        let result_json = crate::mcp_list(temp_path, true);
+        assert!(result_json.is_ok());
     }
 }

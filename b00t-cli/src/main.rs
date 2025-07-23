@@ -7,7 +7,7 @@ use regex::Regex;
 use duct::cmd;
 use semver::Version;
 use anyhow::{Result, Context};
-use b00t_cli::{McpServer, McpConfig, normalize_mcp_json};
+use b00t_cli::{McpServer, McpConfig, normalize_mcp_json, McpListOutput, McpListItem};
 
 mod integration_tests;
 
@@ -76,7 +76,10 @@ enum McpCommands {
         dwiw: bool,
     },
     #[clap(about = "List available MCP server configurations")]
-    List,
+    List {
+        #[clap(long, help = "Output in JSON format")]
+        json: bool,
+    },
 }
 
 #[derive(Parser)]
@@ -149,8 +152,8 @@ fn main() {
                     std::process::exit(1);
                 }
             }
-            McpCommands::List => {
-                if let Err(e) = mcp_list(&cli.path) {
+            McpCommands::List { json } => {
+                if let Err(e) = mcp_list(&cli.path, *json) {
                     eprintln!("Error listing MCP servers: {}", e);
                     std::process::exit(1);
                 }
@@ -356,7 +359,7 @@ fn mcp_add(json: &str, dwiw: bool, path: &str) -> Result<()> {
     Ok(())
 }
 
-fn mcp_list(path: &str) -> Result<()> {
+fn mcp_list(path: &str, json_output: bool) -> Result<()> {
     let expanded_path = shellexpand::tilde(path).to_string();
     let entries = match fs::read_dir(&expanded_path) {
         Ok(entries) => entries,
@@ -365,7 +368,7 @@ fn mcp_list(path: &str) -> Result<()> {
         }
     };
 
-    let mut mcp_servers = Vec::new();
+    let mut mcp_items = Vec::new();
 
     for entry in entries {
         if let Ok(entry) = entry {
@@ -376,10 +379,20 @@ fn mcp_list(path: &str) -> Result<()> {
                         // Try to read the config to get details
                         match get_mcp_config(server_name, path) {
                             Ok(server) => {
-                                mcp_servers.push((server_name.to_string(), Some(server)));
+                                mcp_items.push(McpListItem {
+                                    name: server_name.to_string(),
+                                    command: Some(server.command),
+                                    args: Some(server.args),
+                                    error: None,
+                                });
                             }
-                            Err(_) => {
-                                mcp_servers.push((server_name.to_string(), None));
+                            Err(e) => {
+                                mcp_items.push(McpListItem {
+                                    name: server_name.to_string(),
+                                    command: None,
+                                    args: None,
+                                    error: Some(e.to_string()),
+                                });
                             }
                         }
                     }
@@ -388,28 +401,38 @@ fn mcp_list(path: &str) -> Result<()> {
         }
     }
 
-    if mcp_servers.is_empty() {
-        println!("No MCP server configurations found in {}", expanded_path);
-        println!("Use 'b00t-cli mcp add <json>' to add MCP server configurations.");
+    if json_output {
+        let output = McpListOutput {
+            servers: mcp_items,
+            path: expanded_path,
+        };
+        let json_str = serde_json::to_string_pretty(&output)
+            .context("Failed to serialize MCP list to JSON")?;
+        println!("{}", json_str);
     } else {
-        println!("Available MCP servers in {}:", expanded_path);
-        println!();
-        for (name, server) in mcp_servers {
-            match server {
-                Some(s) => {
-                    println!("📋 {} ({})", name, s.command);
-                    if !s.args.is_empty() {
-                        println!("   args: {}", s.args.join(" "));
+        if mcp_items.is_empty() {
+            println!("No MCP server configurations found in {}", expanded_path);
+            println!("Use 'b00t-cli mcp add <json>' to add MCP server configurations.");
+        } else {
+            println!("Available MCP servers in {}:", expanded_path);
+            println!();
+            for item in mcp_items {
+                match (&item.command, &item.args) {
+                    (Some(command), Some(args)) => {
+                        println!("📋 {} ({})", item.name, command);
+                        if !args.is_empty() {
+                            println!("   args: {}", args.join(" "));
+                        }
+                    }
+                    _ => {
+                        println!("❌ {} (error reading config)", item.name);
                     }
                 }
-                None => {
-                    println!("❌ {} (error reading config)", name);
-                }
             }
+            println!();
+            println!("To install to VSCode: b00t-cli vscode install mcp <name>");
+            println!("To install to Claude Code: b00t-cli claude-code install mcp <name>");
         }
-        println!();
-        println!("To install to VSCode: b00t-cli vscode install mcp <name>");
-        println!("To install to Claude Code: b00t-cli claude-code install mcp <name>");
     }
 
     Ok(())
