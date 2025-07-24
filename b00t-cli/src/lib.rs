@@ -62,6 +62,7 @@ pub enum PackageType {
     Docker,
     Apt,
     Nix,
+    Ai,
 }
 
 #[derive(Serialize, Debug)]
@@ -75,6 +76,27 @@ pub struct McpListItem {
     pub name: String,
     pub command: Option<String>,
     pub args: Option<Vec<String>>,
+    pub error: Option<String>,
+}
+
+#[derive(Deserialize, Serialize, Debug, Clone, PartialEq)]
+pub struct AiConfig {
+    pub b00t: BootPackage,
+    pub models: Option<std::collections::HashMap<String, serde_json::Value>>,
+    pub env: Option<std::collections::HashMap<String, String>>,
+}
+
+#[derive(Serialize, Debug)]
+pub struct AiListOutput {
+    pub providers: Vec<AiListItem>,
+    pub path: String,
+}
+
+#[derive(Serialize, Debug)]
+pub struct AiListItem {
+    pub name: String,
+    pub models: Option<Vec<String>>,
+    pub env_keys: Option<Vec<String>>,
     pub error: Option<String>,
 }
 
@@ -230,6 +252,21 @@ pub fn normalize_mcp_json(input: &str, dwiw: bool) -> Result<BootPackage> {
     anyhow::bail!("Unable to parse MCP server configuration from JSON");
 }
 
+pub fn create_ai_toml_config(config: &AiConfig, path: &str) -> Result<()> {
+    let toml_content = toml::to_string(config)
+        .context("Failed to serialize AI config to TOML")?;
+
+    let mut path_buf = std::path::PathBuf::new();
+    path_buf.push(shellexpand::tilde(path).to_string());
+    path_buf.push(format!("{}.ai.toml", config.b00t.name));
+
+    std::fs::write(&path_buf, toml_content)
+        .context(format!("Failed to write AI config to {}", path_buf.display()))?;
+
+    println!("Created AI config: {}", path_buf.display());
+    Ok(())
+}
+
 pub fn create_unified_toml_config(package: &BootPackage, path: &str) -> Result<()> {
     let config = UnifiedConfig {
         b00t: package.clone(),
@@ -247,6 +284,7 @@ pub fn create_unified_toml_config(package: &BootPackage, path: &str) -> Result<(
         PackageType::Docker => ".docker.toml",
         PackageType::Apt => ".apt.toml",
         PackageType::Nix => ".nix.toml",
+        PackageType::Ai => ".ai.toml",
         PackageType::Traditional => ".toml",
     };
 
@@ -271,6 +309,7 @@ impl std::fmt::Display for PackageType {
             PackageType::Docker => write!(f, "docker"),
             PackageType::Apt => write!(f, "apt"),
             PackageType::Nix => write!(f, "nix"),
+            PackageType::Ai => write!(f, "AI"),
         }
     }
 }
@@ -291,6 +330,8 @@ impl PackageType {
             PackageType::Apt
         } else if filename.ends_with(".nix.toml") {
             PackageType::Nix
+        } else if filename.ends_with(".ai.toml") {
+            PackageType::Ai
         } else {
             PackageType::Traditional // Default fallback for .toml files
         }
@@ -386,6 +427,7 @@ mod tests {
     fn test_normalize_mcp_json_mcpservers_format() {
         let sample_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("samples")
+            .join("mcp")
             .join("mcpservers-format.json");
         let input = std::fs::read_to_string(sample_path).unwrap();
         

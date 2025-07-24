@@ -7,7 +7,7 @@ use regex::Regex;
 use duct::cmd;
 use semver::Version;
 use anyhow::{Result, Context};
-use b00t_cli::{normalize_mcp_json, McpListOutput, McpListItem, UnifiedConfig, BootPackage, PackageType, create_unified_toml_config};
+use b00t_cli::{normalize_mcp_json, McpListOutput, McpListItem, UnifiedConfig, BootPackage, PackageType, create_unified_toml_config, AiConfig, AiListOutput, AiListItem, create_ai_toml_config};
 
 mod integration_tests;
 
@@ -26,6 +26,11 @@ enum Commands {
     Mcp {
         #[clap(subcommand)]
         mcp_command: McpCommands,
+    },
+    #[clap(about = "AI provider management")]
+    Ai {
+        #[clap(subcommand)]
+        ai_command: AiCommands,
     },
     #[clap(about = "VSCode integration")]
     Vscode {
@@ -75,6 +80,29 @@ enum McpCommands {
         mcp_servers: bool,
         #[clap(help = "Comma-separated list of MCP server names to output")]
         servers: String,
+    },
+}
+
+#[derive(Parser)]
+enum AiCommands {
+    #[clap(about = "Add AI provider configuration from TOML file")]
+    Add {
+        #[clap(help = "Path to AI provider TOML file")]
+        file: String,
+    },
+    #[clap(about = "List available AI provider configurations")]
+    List {
+        #[clap(long, help = "Output in JSON format")]
+        json: bool,
+    },
+    #[clap(about = "Output AI providers in various formats")]
+    Output {
+        #[clap(long = "b00t", help = "Output in b00t TOML format (default)", action = clap::ArgAction::SetTrue)]
+        b00t: bool,
+        #[clap(long = "kv", help = "Output environment variables in KEY=VALUE format", action = clap::ArgAction::SetTrue)]
+        kv: bool,
+        #[clap(help = "Comma-separated list of AI provider names to output")]
+        providers: String,
     },
 }
 
@@ -197,6 +225,27 @@ fn main() {
                 
                 if let Err(e) = mcp_output(&cli.path, use_wrapper, servers) {
                     eprintln!("Error outputting MCP servers: {}", e);
+                    std::process::exit(1);
+                }
+            }
+        },
+        Commands::Ai { ai_command } => match ai_command {
+            AiCommands::Add { file } => {
+                if let Err(e) = ai_add(file, &cli.path) {
+                    eprintln!("Error adding AI provider: {}", e);
+                    std::process::exit(1);
+                }
+            }
+            AiCommands::List { json } => {
+                if let Err(e) = ai_list(&cli.path, *json) {
+                    eprintln!("Error listing AI providers: {}", e);
+                    std::process::exit(1);
+                }
+            }
+            AiCommands::Output { b00t: _, kv, providers } => {
+                let format = if *kv { "kv" } else { "b00t" };
+                if let Err(e) = ai_output(&cli.path, format, providers) {
+                    eprintln!("Error outputting AI providers: {}", e);
                     std::process::exit(1);
                 }
             }
@@ -914,6 +963,188 @@ fn mcp_output(path: &str, use_mcp_servers_wrapper: bool, servers: &str) -> Resul
     let json_str = serde_json::to_string_pretty(&output)
         .context("Failed to serialize MCP servers to JSON")?;
     println!("{}", json_str);
+    
+    Ok(())
+}
+
+fn get_ai_toml_files(path: &str) -> Result<Vec<String>> {
+    let expanded_path = get_expanded_path(path)?;
+    let entries = fs::read_dir(&expanded_path)
+        .with_context(|| format!("Error reading directory {}", expanded_path.display()))?;
+
+    let mut ai_files = Vec::new();
+    for entry in entries {
+        if let Ok(entry) = entry {
+            let entry_path = entry.path();
+            if let Some(file_name) = entry_path.file_name().and_then(|s| s.to_str()) {
+                if file_name.ends_with(".ai.toml") {
+                    if let Some(provider_name) = file_name.strip_suffix(".ai.toml") {
+                        ai_files.push(provider_name.to_string());
+                    }
+                }
+            }
+        }
+    }
+    Ok(ai_files)
+}
+
+fn get_ai_config(name: &str, path: &str) -> Result<AiConfig> {
+    let mut path_buf = get_expanded_path(path)?;
+    path_buf.push(format!("{}.ai.toml", name));
+
+    if !path_buf.exists() {
+        anyhow::bail!("AI provider '{}' not found. Use 'b00t-cli ai add' to create it first.", name);
+    }
+
+    let content = fs::read_to_string(&path_buf)
+        .context(format!("Failed to read AI config from {}", path_buf.display()))?;
+    
+    let config: AiConfig = toml::from_str(&content)
+        .context("Failed to parse AI config TOML")?;
+
+    Ok(config)
+}
+
+fn ai_add(file_path: &str, path: &str) -> Result<()> {
+    let content = fs::read_to_string(file_path)
+        .context(format!("Failed to read AI config file: {}", file_path))?;
+    
+    let config: AiConfig = toml::from_str(&content)
+        .context("Failed to parse AI config TOML")?;
+    
+    create_ai_toml_config(&config, path)?;
+    
+    println!("AI provider '{}' configuration saved.", config.b00t.name);
+    
+    Ok(())
+}
+
+fn ai_list(path: &str, json_output: bool) -> Result<()> {
+    let ai_files = get_ai_toml_files(path)?;
+    let mut ai_items = Vec::new();
+
+    for provider_name in ai_files {
+        match get_ai_config(&provider_name, path) {
+            Ok(config) => {
+                let model_names = config.models.as_ref()
+                    .map(|models| models.keys().cloned().collect())
+                    .unwrap_or_default();
+                let env_keys = config.env.as_ref()
+                    .map(|env| env.keys().cloned().collect())
+                    .unwrap_or_default();
+                
+                ai_items.push(AiListItem {
+                    name: provider_name,
+                    models: Some(model_names),
+                    env_keys: Some(env_keys),
+                    error: None,
+                });
+            }
+            Err(e) => {
+                ai_items.push(AiListItem {
+                    name: provider_name,
+                    models: None,
+                    env_keys: None,
+                    error: Some(e.to_string()),
+                });
+            }
+        }
+    }
+
+    if json_output {
+        let expanded_path = get_expanded_path(path)?;
+        let output = AiListOutput {
+            providers: ai_items,
+            path: expanded_path.display().to_string(),
+        };
+        let json_str = serde_json::to_string_pretty(&output)
+            .context("Failed to serialize AI list to JSON")?;
+        println!("{}", json_str);
+    } else {
+        let expanded_path = get_expanded_path(path)?;
+        if ai_items.is_empty() {
+            println!("No AI provider configurations found in {}", expanded_path.display());
+            println!("Use 'b00t-cli ai add <file>' to add AI provider configurations.");
+        } else {
+            println!("Available AI providers in {}:", expanded_path.display());
+            println!();
+            for item in ai_items {
+                match (&item.models, &item.env_keys) {
+                    (Some(models), Some(env_keys)) => {
+                        println!("🤖 {} ({} models, {} env vars)", item.name, models.len(), env_keys.len());
+                        if !models.is_empty() {
+                            println!("   models: {}", models.join(", "));
+                        }
+                        if !env_keys.is_empty() {
+                            println!("   env: {}", env_keys.join(", "));
+                        }
+                    }
+                    _ => {
+                        println!("❌ {} (error reading config)", item.name);
+                    }
+                }
+            }
+            println!();
+            println!("Use 'b00t-cli ai output --kv <providers>' for environment variables");
+            println!("Use 'b00t-cli ai output --b00t <providers>' for TOML format");
+        }
+    }
+
+    Ok(())
+}
+
+fn substitute_env_vars(template: &str) -> String {
+    let mut result = template.to_string();
+    let env_var_pattern = Regex::new(r"\$\{([^}]+)\}").unwrap();
+    
+    while let Some(captures) = env_var_pattern.captures(&result) {
+        let full_match = captures.get(0).unwrap().as_str();
+        let var_name = captures.get(1).unwrap().as_str();
+        let var_value = std::env::var(var_name).unwrap_or_default();
+        result = result.replace(full_match, &var_value);
+    }
+    
+    result
+}
+
+fn ai_output(path: &str, format: &str, providers: &str) -> Result<()> {
+    let requested_providers: Vec<&str> = providers.split(',').map(|s| s.trim()).collect();
+    
+    for provider_name in requested_providers {
+        if provider_name.is_empty() {
+            continue;
+        }
+        
+        match get_ai_config(provider_name, path) {
+            Ok(config) => {
+                match format {
+                    "kv" => {
+                        if let Some(env_vars) = &config.env {
+                            for (key, value) in env_vars {
+                                let final_value = if value.is_empty() {
+                                    // If value is empty, try to get from environment
+                                    std::env::var(key).unwrap_or_default()
+                                } else {
+                                    // Manual environment variable substitution
+                                    substitute_env_vars(value)
+                                };
+                                println!("{}={}", key, final_value);
+                            }
+                        }
+                    }
+                    "b00t" | _ => {
+                        let toml_str = toml::to_string(&config)
+                            .context("Failed to serialize AI config to TOML")?;
+                        println!("{}", toml_str);
+                    }
+                }
+            }
+            Err(e) => {
+                eprintln!("Warning: Failed to read config for '{}': {}", provider_name, e);
+                continue;
+            }
+        }
+    }
     
     Ok(())
 }
