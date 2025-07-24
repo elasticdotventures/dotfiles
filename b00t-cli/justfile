@@ -24,3 +24,23 @@ test-claude-code:
 	cargo run -- claude-code install mcp playwright
 	cargo run -- claude-code install mcp github
 	cargo run -- claude-code install mcp filesystem
+
+# Usage:
+#   just bump                # defaults to "patch"
+#   just bump minor          # or "major"
+
+bump level = "patch":
+	#!/usr/bin/env bash
+	if [[ "{{level}}" != "patch" && "{{level}}" != "minor" && "{{level}}" != "major" ]]; then
+		echo "Invalid bump level: '{{level}}'. Must be one of: patch, minor, major." >&2;
+		exit 1;
+	fi
+	cargo install --quiet cargo-release --locked || true
+	echo "Bumping version: {{level}}"
+	cargo release {{level}} --no-publish --no-push --no-confirm
+
+noop:
+	@echo "Noop command executed. This is a placeholder for future commands."
+
+
+
