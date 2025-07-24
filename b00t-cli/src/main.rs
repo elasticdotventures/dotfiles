@@ -67,6 +67,13 @@ enum McpCommands {
         #[clap(help = "Installation target: claudecode, vscode")]
         target: String,
     },
+    #[clap(about = "Output MCP servers in mcpServers format")]
+    Output {
+        #[clap(long = "mcpServers", help = "Don't wrap output in mcpServers object", action = clap::ArgAction::SetTrue)]
+        no_mcp_servers: bool,
+        #[clap(help = "Comma-separated list of MCP server names to output")]
+        servers: String,
+    },
 }
 
 #[derive(Parser)]
@@ -175,6 +182,12 @@ fn main() {
                 };
                 if let Err(e) = result {
                     eprintln!("Error installing MCP server to {}: {}", target, e);
+                    std::process::exit(1);
+                }
+            }
+            McpCommands::Output { no_mcp_servers, servers } => {
+                if let Err(e) = mcp_output(&cli.path, !no_mcp_servers, servers) {
+                    eprintln!("Error outputting MCP servers: {}", e);
                     std::process::exit(1);
                 }
             }
@@ -460,62 +473,72 @@ fn mcp_add(json: &str, dwiw: bool, path: &str) -> Result<()> {
     Ok(())
 }
 
-fn mcp_list(path: &str, json_output: bool) -> Result<()> {
-    let expanded_path = shellexpand::tilde(path).to_string();
-    let entries = match fs::read_dir(&expanded_path) {
-        Ok(entries) => entries,
-        Err(e) => {
-            anyhow::bail!("Error reading directory {}: {}", &expanded_path, e);
-        }
-    };
+fn get_expanded_path(path: &str) -> Result<PathBuf> {
+    Ok(PathBuf::from(shellexpand::tilde(path).to_string()))
+}
 
-    let mut mcp_items = Vec::new();
+fn get_mcp_toml_files(path: &str) -> Result<Vec<String>> {
+    let expanded_path = get_expanded_path(path)?;
+    let entries = fs::read_dir(&expanded_path)
+        .with_context(|| format!("Error reading directory {}", expanded_path.display()))?;
 
+    let mut mcp_files = Vec::new();
     for entry in entries {
         if let Ok(entry) = entry {
             let entry_path = entry.path();
             if let Some(file_name) = entry_path.file_name().and_then(|s| s.to_str()) {
                 if file_name.ends_with(".mcp.toml") {
                     if let Some(server_name) = file_name.strip_suffix(".mcp.toml") {
-                        // Try to read the config to get details
-                        match get_mcp_config(server_name, path) {
-                            Ok(package) => {
-                                mcp_items.push(McpListItem {
-                                    name: server_name.to_string(),
-                                    command: package.command.clone(),
-                                    args: package.args.clone(),
-                                    error: None,
-                                });
-                            }
-                            Err(e) => {
-                                mcp_items.push(McpListItem {
-                                    name: server_name.to_string(),
-                                    command: None,
-                                    args: None,
-                                    error: Some(e.to_string()),
-                                });
-                            }
-                        }
+                        mcp_files.push(server_name.to_string());
                     }
                 }
             }
         }
     }
+    Ok(mcp_files)
+}
+
+fn mcp_list(path: &str, json_output: bool) -> Result<()> {
+    let mcp_files = get_mcp_toml_files(path)?;
+    let mut mcp_items = Vec::new();
+
+    for server_name in mcp_files {
+        match get_mcp_config(&server_name, path) {
+            Ok(package) => {
+                mcp_items.push(McpListItem {
+                    name: server_name,
+                    command: package.command.clone(),
+                    args: package.args.clone(),
+                    error: None,
+                });
+            }
+            Err(e) => {
+                mcp_items.push(McpListItem {
+                    name: server_name,
+                    command: None,
+                    args: None,
+                    error: Some(e.to_string()),
+                });
+            }
+        }
+    }
 
     if json_output {
+        let expanded_path = get_expanded_path(path)?;
         let output = McpListOutput {
             servers: mcp_items,
-            path: expanded_path,
+            path: expanded_path.display().to_string(),
         };
         let json_str = serde_json::to_string_pretty(&output)
             .context("Failed to serialize MCP list to JSON")?;
         println!("{}", json_str);
     } else {
+        let expanded_path = get_expanded_path(path)?;
         if mcp_items.is_empty() {
-            println!("No MCP server configurations found in {}", expanded_path);
+            println!("No MCP server configurations found in {}", expanded_path.display());
             println!("Use 'b00t-cli mcp add <json>' to add MCP server configurations.");
         } else {
-            println!("Available MCP servers in {}:", expanded_path);
+            println!("Available MCP servers in {}:", expanded_path.display());
             println!();
             for item in mcp_items {
                 match (&item.command, &item.args) {
@@ -540,8 +563,7 @@ fn mcp_list(path: &str, json_output: bool) -> Result<()> {
 }
 
 fn get_mcp_config(name: &str, path: &str) -> Result<BootPackage> {
-    let mut path_buf = PathBuf::new();
-    path_buf.push(shellexpand::tilde(path).to_string());
+    let mut path_buf = get_expanded_path(path)?;
     path_buf.push(format!("{}.mcp.toml", name));
 
     if !path_buf.exists() {
@@ -820,4 +842,50 @@ fn cli_up(path: &str) {
             }
         }
     }
+}
+
+fn mcp_output(path: &str, use_mcp_servers_wrapper: bool, servers: &str) -> Result<()> {
+    let requested_servers: Vec<&str> = servers.split(',').map(|s| s.trim()).collect();
+    let mut server_configs = serde_json::Map::new();
+    
+    for server_name in requested_servers {
+        if server_name.is_empty() {
+            continue;
+        }
+        
+        match get_mcp_config(server_name, path) {
+            Ok(package) => {
+                let mut server_config = serde_json::Map::new();
+                server_config.insert("command".to_string(), 
+                    serde_json::Value::String(package.command.unwrap_or_else(|| "npx".to_string())));
+                server_config.insert("args".to_string(), 
+                    serde_json::Value::Array(
+                        package.args.unwrap_or_default()
+                            .into_iter()
+                            .map(serde_json::Value::String)
+                            .collect()
+                    ));
+                
+                server_configs.insert(server_name.to_string(), serde_json::Value::Object(server_config));
+            }
+            Err(e) => {
+                eprintln!("Warning: Failed to read config for '{}': {}", server_name, e);
+                continue;
+            }
+        }
+    }
+    
+    let output = if use_mcp_servers_wrapper {
+        let mut wrapper = serde_json::Map::new();
+        wrapper.insert("mcpServers".to_string(), serde_json::Value::Object(server_configs));
+        serde_json::Value::Object(wrapper)
+    } else {
+        serde_json::Value::Object(server_configs)
+    };
+    
+    let json_str = serde_json::to_string_pretty(&output)
+        .context("Failed to serialize MCP servers to JSON")?;
+    println!("{}", json_str);
+    
+    Ok(())
 }
