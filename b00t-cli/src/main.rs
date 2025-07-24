@@ -67,10 +67,12 @@ enum McpCommands {
         #[clap(help = "Installation target: claudecode, vscode")]
         target: String,
     },
-    #[clap(about = "Output MCP servers in mcpServers format")]
+    #[clap(about = "Output MCP servers in various formats")]
     Output {
-        #[clap(long = "mcpServers", help = "Don't wrap output in mcpServers object", action = clap::ArgAction::SetTrue)]
-        no_mcp_servers: bool,
+        #[clap(long = "json", help = "Output raw JSON format without wrapper", action = clap::ArgAction::SetTrue)]
+        json: bool,
+        #[clap(long = "mcpServers", help = "Output in mcpServers format (default)", action = clap::ArgAction::SetTrue)]
+        mcp_servers: bool,
         #[clap(help = "Comma-separated list of MCP server names to output")]
         servers: String,
     },
@@ -185,8 +187,15 @@ fn main() {
                     std::process::exit(1);
                 }
             }
-            McpCommands::Output { no_mcp_servers, servers } => {
-                if let Err(e) = mcp_output(&cli.path, !no_mcp_servers, servers) {
+            McpCommands::Output { json, mcp_servers: _, servers } => {
+                // Default to mcpServers format unless --json is specified
+                let use_wrapper = if *json {
+                    false
+                } else {
+                    true // Default behavior or explicit --mcpServers
+                };
+                
+                if let Err(e) = mcp_output(&cli.path, use_wrapper, servers) {
                     eprintln!("Error outputting MCP servers: {}", e);
                     std::process::exit(1);
                 }
@@ -868,9 +877,28 @@ fn mcp_output(path: &str, use_mcp_servers_wrapper: bool, servers: &str) -> Resul
                 
                 server_configs.insert(server_name.to_string(), serde_json::Value::Object(server_config));
             }
-            Err(e) => {
-                eprintln!("Warning: Failed to read config for '{}': {}", server_name, e);
-                continue;
+            Err(_) => {
+                // Create a cute poopy log error indicator instead of stderr warning
+                let mut error_config = serde_json::Map::new();
+                error_config.insert("command".to_string(), 
+                    serde_json::Value::String("b00t:💩🪵".to_string()));
+                
+                let utc_timestamp = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap()
+                    .as_secs();
+                let utc_time = chrono::DateTime::from_timestamp(utc_timestamp as i64, 0)
+                    .unwrap()
+                    .format("%Y-%m-%dT%H:%M:%SZ")
+                    .to_string();
+                
+                error_config.insert("args".to_string(), 
+                    serde_json::Value::Array(vec![
+                        serde_json::Value::String(utc_time),
+                        serde_json::Value::String(format!("server '{}' not found in _b00t_ directory", server_name))
+                    ]));
+                
+                server_configs.insert(server_name.to_string(), serde_json::Value::Object(error_config));
             }
         }
     }
