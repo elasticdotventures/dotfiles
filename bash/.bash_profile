@@ -16,7 +16,7 @@ if [ -f ~/.dotfiles/_b00t_/_b00t_.bashrc ] ; then
     # Check if running in VS Code integrated terminal
     # Returns 0 (success) if VSCODE_GIT_IPC_HANDLE is set, 1 (failure) otherwise
     # Usage: if is_vscode_shell; then echo "In VS Code terminal"; fi
-    source "../vscode.🆚/vscode-detection.sh"
+    source ~/.dotfiles/vscode.🆚/vscode-detection.sh
     if ! type is_vscode_shell &>/dev/null; then
         echo "🙈🥾 is_vscode_shell not defined"
     elif is_vscode_shell; then
