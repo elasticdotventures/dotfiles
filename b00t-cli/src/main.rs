@@ -60,6 +60,13 @@ enum McpCommands {
         #[clap(long, help = "Output in JSON format")]
         json: bool,
     },
+    #[clap(about = "Install MCP server to a target (claudecode, vscode)")]
+    Install {
+        #[clap(help = "MCP server name")]
+        name: String,
+        #[clap(help = "Installation target: claudecode, vscode")]
+        target: String,
+    },
 }
 
 #[derive(Parser)]
@@ -154,6 +161,20 @@ fn main() {
             McpCommands::List { json } => {
                 if let Err(e) = mcp_list(&cli.path, *json) {
                     eprintln!("Error listing MCP servers: {}", e);
+                    std::process::exit(1);
+                }
+            }
+            McpCommands::Install { name, target } => {
+                let result = match target.as_str() {
+                    "claudecode" => claude_code_install_mcp(name, &cli.path),
+                    "vscode" => vscode_install_mcp(name, &cli.path),
+                    _ => {
+                        eprintln!("Error: Invalid target '{}'. Valid targets are: claudecode, vscode", target);
+                        std::process::exit(1);
+                    }
+                };
+                if let Err(e) = result {
+                    eprintln!("Error installing MCP server to {}: {}", target, e);
                     std::process::exit(1);
                 }
             }

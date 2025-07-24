@@ -1,4 +1,0 @@
-[mcp]
-name = "playwright"
-command = "npx"
-args = ["-y", "@executeautomation/playwright-mcp-server"]

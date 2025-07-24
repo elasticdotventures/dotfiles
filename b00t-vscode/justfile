@@ -1,5 +1,11 @@
+# display is selected automatically
+DISPLAY := "localhost:10.0"
+
 default:
     @echo "Usage: just [install|build|package|add|remove|clean|deploy]"
+
+test:
+    npm run build && DISPLAY={{DISPLAY}} npm test
 
 install:
     @echo "Installing dependencies with npm..."

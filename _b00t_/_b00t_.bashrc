@@ -971,9 +971,9 @@ function _b00t_check() {
     local toml_dir="$HOME/.dotfiles/_b00t_"
 
     # Get all .toml files, sort them alphabetically, and iterate
-    for toml_file in $(find "$toml_dir" -maxdepth 1 -name "*.toml" | sort); do
-        local command_name=$(basename "$toml_file" .toml)
-        b00t . "$command_name"
+    for toml_file in $(find "$toml_dir" -maxdepth 1 -name "*.cli.toml" | sort); do
+        local command_name=$(basename "$toml_file" .cli.toml)
+        b00t cli check "$command_name"
         local exit_code=$?
         if [ $exit_code -eq 1 ] || [ $exit_code -eq 2 ]; then
             outdated_found=1
