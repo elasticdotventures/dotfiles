@@ -8,7 +8,7 @@ use duct::cmd;
 use semver::Version;
 use anyhow::{Result, Context};
 use tera::{Tera, Context as TeraContext};
-use b00t_cli::{normalize_mcp_json, McpListOutput, McpListItem, UnifiedConfig, BootPackage, PackageType, create_unified_toml_config, AiConfig, AiListOutput, AiListItem, create_ai_toml_config};
+use b00t_cli::{normalize_mcp_json, McpListOutput, McpListItem, UnifiedConfig, BootDatum, DatumType, create_unified_toml_config, AiConfig, AiListOutput, AiListItem, create_ai_toml_config};
 
 mod integration_tests;
 
@@ -60,8 +60,8 @@ enum Commands {
 
 #[derive(Parser)]
 enum McpCommands {
-    #[clap(about = "Add MCP server configuration", long_about = "Add MCP server configuration from JSON or command.\n\nJSON Examples:\n  b00t-cli mcp add '{\"name\":\"filesystem\",\"command\":\"npx\",\"args\":[\"-y\",\"@modelcontextprotocol/server-filesystem\"]}'\n  echo '{...}' | b00t-cli mcp add -\n\nCommand Examples:\n  b00t-cli mcp add brave-search -- npx -y @modelcontextprotocol/server-brave-search\n  b00t-cli mcp add filesystem --hint \"File system access\" -- npx -y @modelcontextprotocol/server-filesystem\n\nInstallation Examples:\n  b00t-cli mcp install brave-search claudecode\n  b00t-cli app vscode mcp install filesystem")]
-    Add {
+    #[clap(about = "Create MCP server configuration", long_about = "Create MCP server configuration from JSON or command.\n\nJSON Examples:\n  b00t-cli mcp create '{\"name\":\"filesystem\",\"command\":\"npx\",\"args\":[\"-y\",\"@modelcontextprotocol/server-filesystem\"]}'\n  echo '{...}' | b00t-cli mcp create -\n\nCommand Examples:\n  b00t-cli mcp create brave-search -- npx -y @modelcontextprotocol/server-brave-search\n  b00t-cli mcp create filesystem --hint \"File system access\" -- npx -y @modelcontextprotocol/server-filesystem\n\nInstallation Examples:\n  b00t-cli mcp install brave-search claudecode\n  b00t-cli app vscode mcp install filesystem")]
+    Create {
         #[clap(help = "MCP server name (for command mode) or JSON configuration (for JSON mode)")]
         name_or_json: String,
         #[clap(long, help = "Description/hint for the MCP server")]
@@ -470,9 +470,9 @@ fn get_mcp_tools_status(path: &str) -> Result<Vec<ToolStatus>> {
 
 fn check_mcp_tool_status(tool_name: &str, path: &str) -> Result<ToolStatus> {
     match get_mcp_config(tool_name, path) {
-        Ok(package) => {
+        Ok(datum) => {
             // For MCP servers, check if the command exists and is executable
-            let installed = if let Some(command) = &package.command {
+            let installed = if let Some(command) = &datum.command {
                 check_command_available(command)
             } else {
                 false
@@ -494,7 +494,7 @@ fn check_mcp_tool_status(tool_name: &str, path: &str) -> Result<ToolStatus> {
                 version_status,
                 current_version: if installed { Some("available".to_string()) } else { None },
                 desired_version: None,
-                hint: package.hint,
+                hint: datum.hint,
             })
         }
         Err(_) => {
@@ -778,7 +778,7 @@ echo "malicious" > ~/.dotfiles/_b00t_/hack.toml
 "#;
     print!("{}", doc);
     
-    // Generate PackageType documentation introspectively
+    // Generate DatumType documentation introspectively
     let package_types = vec![
         ("Traditional", "Standard CLI tools", vec![".cli.toml", ".toml"]),
         ("Mcp", "MCP servers", vec![".mcp.toml"]),
@@ -790,7 +790,7 @@ echo "malicious" > ~/.dotfiles/_b00t_/hack.toml
         ("Bash", "Bash scripts", vec![".bash.toml"]),
     ];
     
-    println!("### PackageType Enum");
+    println!("### DatumType Enum");
     println!("Determines package behavior based on file extension:");
     for (variant, description, extensions) in &package_types {
         println!("- `{}`: {} ({})", variant, description, extensions.join(", "));
@@ -1006,15 +1006,15 @@ fn main() {
 
     match &cli.command {
         Some(Commands::Mcp { mcp_command }) => match mcp_command {
-            McpCommands::Add { name_or_json, hint, dwiw: _, no_dwiw, command_args } => {
+            McpCommands::Create { name_or_json, hint, dwiw: _, no_dwiw, command_args } => {
                 if !command_args.is_empty() {
-                    // Command mode: b00t-cli mcp add name -- command args...
+                    // Command mode: b00t-cli mcp create name -- command args...
                     if let Err(e) = mcp_add_command(name_or_json, hint.as_deref(), command_args, &cli.path) {
                         eprintln!("Error adding MCP server: {}", e);
                         std::process::exit(1);
                     }
                 } else {
-                    // JSON mode: b00t-cli mcp add '{"name":"..."}'
+                    // JSON mode: b00t-cli mcp create '{"name":"..."}'
                     let use_dwiw = if *no_dwiw { false } else { true };
                     if let Err(e) = mcp_add_json(name_or_json, use_dwiw, &cli.path) {
                         eprintln!("Error adding MCP server: {}", e);
@@ -1198,8 +1198,8 @@ fn desires(command: &str, path: &str) {
 fn install(command: &str, path: &str) {
     match get_config(command, path) {
         Ok((config, filename)) => {
-            match config.b00t.get_package_type(Some(&filename)) {
-                PackageType::Traditional => {
+            match config.b00t.get_datum_type(Some(&filename)) {
+                DatumType::Unknown => {
                     if let Some(install_cmd) = &config.b00t.install {
                         println!("Installing {}...", command);
                         let result = cmd!("bash", "-c", install_cmd).run();
@@ -1211,11 +1211,11 @@ fn install(command: &str, path: &str) {
                         eprintln!("No install command defined for {}", command);
                     }
                 }
-                PackageType::Mcp => {
+                DatumType::Mcp => {
                     eprintln!("Use 'b00t-cli vscode install mcp {}' or 'b00t-cli claude-code install mcp {}' instead", command, command);
                 }
                 _ => {
-                    eprintln!("Installation not yet supported for {:?} packages", config.b00t.get_package_type(Some(&filename)));
+                    eprintln!("Installation not yet supported for {:?} packages", config.b00t.get_datum_type(Some(&filename)));
                 }
             }
         }
@@ -1227,8 +1227,8 @@ fn install(command: &str, path: &str) {
 fn update(command: &str, path: &str) {
     match get_config(command, path) {
         Ok((config, filename)) => {
-            match config.b00t.get_package_type(Some(&filename)) {
-                PackageType::Traditional => {
+            match config.b00t.get_datum_type(Some(&filename)) {
+                DatumType::Unknown => {
                     if let Some(update_cmd) = config.b00t.update.as_ref().or(config.b00t.install.as_ref()) {
                         println!("Updating {}...", command);
                         let result = cmd!("bash", "-c", update_cmd).run();
@@ -1241,7 +1241,7 @@ fn update(command: &str, path: &str) {
                     }
                 }
                 _ => {
-                    eprintln!("Update not yet supported for {:?} packages", config.b00t.get_package_type(Some(&filename)));
+                    eprintln!("Update not yet supported for {:?} packages", config.b00t.get_datum_type(Some(&filename)));
                 }
             }
         }
@@ -1342,8 +1342,8 @@ fn up(path: &str) {
 }
 
 
-fn create_mcp_toml_config(package: &BootPackage, path: &str) -> Result<()> {
-    create_unified_toml_config(package, path)
+fn create_mcp_toml_config(datum: &BootDatum, path: &str) -> Result<()> {
+    create_unified_toml_config(datum, path)
 }
 
 fn is_whitelisted_package_manager(command: &str) -> bool {
@@ -1372,9 +1372,9 @@ fn mcp_add_command(name: &str, hint: Option<&str>, command_args: &[String], path
         _ => (command.clone(), command_args[1..].to_vec())
     };
     
-    let package = BootPackage {
+    let datum = BootDatum {
         name: name.to_string(),
-        package_type: Some(PackageType::Mcp),
+        datum_type: Some(DatumType::Mcp),
         desires: None,
         hint: hint.unwrap_or("MCP server").to_string(),
         install: None,
@@ -1388,14 +1388,16 @@ fn mcp_add_command(name: &str, hint: Option<&str>, command_args: &[String], path
         image: None,
         docker_args: None,
         package_name: None,
+        env: None,
+        require: None,
     };
     
-    create_mcp_toml_config(&package, path)?;
+    create_mcp_toml_config(&datum, path)?;
     
-    println!("MCP server '{}' configuration saved.", package.name);
-    println!("Command: {} {}", package.command.as_ref().unwrap(), package.args.as_ref().unwrap().join(" "));
-    println!("To install to VSCode: b00t-cli vscode install mcp {}", package.name);
-    println!("To install to Claude Code: b00t-cli claude-code install mcp {}", package.name);
+    println!("MCP server '{}' configuration saved.", datum.name);
+    println!("Command: {} {}", datum.command.as_ref().unwrap(), datum.args.as_ref().unwrap().join(" "));
+    println!("To install to VSCode: b00t-cli vscode install mcp {}", datum.name);
+    println!("To install to Claude Code: b00t-cli claude-code install mcp {}", datum.name);
     
     Ok(())
 }
@@ -1419,12 +1421,12 @@ fn mcp_add_json(json: &str, dwiw: bool, path: &str) -> Result<()> {
         json.trim().to_string()
     };
     
-    let package = normalize_mcp_json(&json_content, dwiw)?;
+    let datum = normalize_mcp_json(&json_content, dwiw)?;
     
-    create_mcp_toml_config(&package, path)?;
+    create_mcp_toml_config(&datum, path)?;
     
-    println!("MCP server '{}' configuration saved.", package.name);
-    println!("To install to VSCode: b00t-cli vscode install mcp {}", package.name);
+    println!("MCP server '{}' configuration saved.", datum.name);
+    println!("To install to VSCode: b00t-cli vscode install mcp {}", datum.name);
     
     Ok(())
 }
@@ -1460,11 +1462,11 @@ fn mcp_list(path: &str, json_output: bool) -> Result<()> {
 
     for server_name in mcp_files {
         match get_mcp_config(&server_name, path) {
-            Ok(package) => {
+            Ok(datum) => {
                 mcp_items.push(McpListItem {
                     name: server_name,
-                    command: package.command.clone(),
-                    args: package.args.clone(),
+                    command: datum.command.clone(),
+                    args: datum.args.clone(),
                     error: None,
                 });
             }
@@ -1518,7 +1520,7 @@ fn mcp_list(path: &str, json_output: bool) -> Result<()> {
     Ok(())
 }
 
-fn get_mcp_config(name: &str, path: &str) -> Result<BootPackage> {
+fn get_mcp_config(name: &str, path: &str) -> Result<BootDatum> {
     let mut path_buf = get_expanded_path(path)?;
     path_buf.push(format!("{}.mcp.toml", name));
 
@@ -1536,12 +1538,12 @@ fn get_mcp_config(name: &str, path: &str) -> Result<BootPackage> {
 }
 
 fn vscode_install_mcp(name: &str, path: &str) -> Result<()> {
-    let package = get_mcp_config(name, path)?;
+    let datum = get_mcp_config(name, path)?;
     
     let vscode_json = serde_json::json!({
-        "name": package.name,
-        "command": package.command.as_ref().unwrap_or(&"npx".to_string()),
-        "args": package.args.as_ref().unwrap_or(&vec![])
+        "name": datum.name,
+        "command": datum.command.as_ref().unwrap_or(&"npx".to_string()),
+        "args": datum.args.as_ref().unwrap_or(&vec![])
     });
 
     let json_str = serde_json::to_string(&vscode_json)
@@ -1551,7 +1553,7 @@ fn vscode_install_mcp(name: &str, path: &str) -> Result<()> {
     
     match result {
         Ok(_) => {
-            println!("Successfully installed MCP server '{}' to VSCode", package.name);
+            println!("Successfully installed MCP server '{}' to VSCode", datum.name);
             println!("VSCode command: code --add-mcp '{}'", json_str);
         },
         Err(e) => {
@@ -1565,13 +1567,13 @@ fn vscode_install_mcp(name: &str, path: &str) -> Result<()> {
 }
 
 fn claude_code_install_mcp(name: &str, path: &str) -> Result<()> {
-    let package = get_mcp_config(name, path)?;
+    let datum = get_mcp_config(name, path)?;
     
     // Claude Code uses claude-code config add-mcp command
     let claude_json = serde_json::json!({
-        "name": package.name,
-        "command": package.command.as_ref().unwrap_or(&"npx".to_string()),
-        "args": package.args.as_ref().unwrap_or(&vec![])
+        "name": datum.name,
+        "command": datum.command.as_ref().unwrap_or(&"npx".to_string()),
+        "args": datum.args.as_ref().unwrap_or(&vec![])
     });
 
     let json_str = serde_json::to_string(&claude_json)
@@ -1581,7 +1583,7 @@ fn claude_code_install_mcp(name: &str, path: &str) -> Result<()> {
     
     match result {
         Ok(_) => {
-            println!("Successfully installed MCP server '{}' to Claude Code", package.name);
+            println!("Successfully installed MCP server '{}' to Claude Code", datum.name);
             println!("Claude Code command: claude-code config add-mcp '{}'", json_str);
         },
         Err(e) => {
@@ -1595,9 +1597,9 @@ fn claude_code_install_mcp(name: &str, path: &str) -> Result<()> {
 }
 
 fn cli_run(name: &str, path: &str) -> Result<()> {
-    let package = get_cli_config(name, path)?;
+    let datum = get_cli_config(name, path)?;
     
-    if let Some(command) = &package.command {
+    if let Some(command) = &datum.command {
         println!("Running CLI script '{}'...", name);
         let result = cmd!("bash", "-c", command).run();
         match result {
@@ -1664,7 +1666,7 @@ fn get_cli_installed_version(command: &str, path: &str) -> Option<String> {
     None
 }
 
-fn get_cli_config(name: &str, path: &str) -> Result<BootPackage> {
+fn get_cli_config(name: &str, path: &str) -> Result<BootDatum> {
     let mut path_buf = PathBuf::new();
     path_buf.push(shellexpand::tilde(path).to_string());
     path_buf.push(format!("{}.cli.toml", name));
@@ -1703,8 +1705,8 @@ fn cli_desires(command: &str, path: &str) {
 fn cli_install(command: &str, path: &str) {
     match get_cli_unified_config(command, path) {
         Ok((config, filename)) => {
-            match config.b00t.get_package_type(Some(&filename)) {
-                PackageType::Traditional => {
+            match config.b00t.get_datum_type(Some(&filename)) {
+                DatumType::Unknown => {
                     if let Some(install_cmd) = &config.b00t.install {
                         println!("Installing {}...", command);
                         let result = cmd!("bash", "-c", install_cmd).run();
@@ -1716,11 +1718,11 @@ fn cli_install(command: &str, path: &str) {
                         eprintln!("No install command defined for {}", command);
                     }
                 }
-                PackageType::Mcp => {
+                DatumType::Mcp => {
                     eprintln!("Use 'b00t-cli vscode install mcp {}' or 'b00t-cli claude-code install mcp {}' instead", command, command);
                 }
                 _ => {
-                    eprintln!("Installation not yet supported for {:?} packages", config.b00t.get_package_type(Some(&filename)));
+                    eprintln!("Installation not yet supported for {:?} packages", config.b00t.get_datum_type(Some(&filename)));
                 }
             }
         }
@@ -1731,8 +1733,8 @@ fn cli_install(command: &str, path: &str) {
 fn cli_update(command: &str, path: &str) {
     match get_cli_unified_config(command, path) {
         Ok((config, filename)) => {
-            match config.b00t.get_package_type(Some(&filename)) {
-                PackageType::Traditional => {
+            match config.b00t.get_datum_type(Some(&filename)) {
+                DatumType::Unknown => {
                     if let Some(update_cmd) = config.b00t.update.as_ref().or(config.b00t.install.as_ref()) {
                         println!("Updating {}...", command);
                         let result = cmd!("bash", "-c", update_cmd).run();
@@ -1745,7 +1747,7 @@ fn cli_update(command: &str, path: &str) {
                     }
                 }
                 _ => {
-                    eprintln!("Update not yet supported for {:?} packages", config.b00t.get_package_type(Some(&filename)));
+                    eprintln!("Update not yet supported for {:?} packages", config.b00t.get_datum_type(Some(&filename)));
                 }
             }
         }
@@ -1810,13 +1812,13 @@ fn mcp_output(path: &str, use_mcp_servers_wrapper: bool, servers: &str) -> Resul
         }
         
         match get_mcp_config(server_name, path) {
-            Ok(package) => {
+            Ok(datum) => {
                 let mut server_config = serde_json::Map::new();
                 server_config.insert("command".to_string(), 
-                    serde_json::Value::String(package.command.unwrap_or_else(|| "npx".to_string())));
+                    serde_json::Value::String(datum.command.unwrap_or_else(|| "npx".to_string())));
                 server_config.insert("args".to_string(), 
                     serde_json::Value::Array(
-                        package.args.unwrap_or_default()
+                        datum.args.unwrap_or_default()
                             .into_iter()
                             .map(serde_json::Value::String)
                             .collect()

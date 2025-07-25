@@ -17,18 +17,17 @@ pub struct McpConfig {
 
 #[derive(Deserialize, Serialize, Debug, Clone, PartialEq)]
 pub struct UnifiedConfig {
-    pub b00t: BootPackage,
+    pub b00t: BootDatum,
 }
 
 #[derive(Deserialize, Serialize, Debug, Clone, PartialEq)]
-pub struct BootPackage {
+pub struct BootDatum {
     pub name: String,
     #[serde(rename = "type")]
-    pub package_type: Option<PackageType>,
+    pub datum_type: Option<DatumType>,
     pub desires: Option<String>,
     pub hint: String,
     
-    // Traditional package fields
     pub install: Option<String>,
     pub update: Option<String>,
     pub version: Option<String>,
@@ -48,14 +47,19 @@ pub struct BootPackage {
     pub image: Option<String>,
     pub docker_args: Option<Vec<String>>,
     
-    // Package manager fields
     pub package_name: Option<String>,
+    
+    // Environment variables
+    pub env: Option<std::collections::HashMap<String, String>>,
+    
+    // Require constraints
+    pub require: Option<Vec<String>>,
 }
 
 #[derive(Deserialize, Serialize, Debug, Clone, PartialEq)]
 #[serde(rename_all = "lowercase")]
-pub enum PackageType {
-    Traditional,
+pub enum DatumType {
+    Unknown,
     Mcp,
     Bash,
     Vscode,
@@ -81,7 +85,7 @@ pub struct McpListItem {
 
 #[derive(Deserialize, Serialize, Debug, Clone, PartialEq)]
 pub struct AiConfig {
-    pub b00t: BootPackage,
+    pub b00t: BootDatum,
     pub models: Option<std::collections::HashMap<String, serde_json::Value>>,
     pub env: Option<std::collections::HashMap<String, String>>,
 }
@@ -131,7 +135,7 @@ pub fn clean_json_for_dwiw(input: &str) -> String {
     extract_comments_and_clean_json(input).0
 }
 
-pub fn normalize_mcp_json(input: &str, dwiw: bool) -> Result<BootPackage> {
+pub fn normalize_mcp_json(input: &str, dwiw: bool) -> Result<BootDatum> {
     let (cleaned_input, hint) = if dwiw {
         extract_comments_and_clean_json(input)
     } else {
@@ -142,9 +146,9 @@ pub fn normalize_mcp_json(input: &str, dwiw: bool) -> Result<BootPackage> {
 
     // Handle direct format: {"name": "...", "command": "...", "args": [...]}
     if let Some(name) = json_value.get("name") {
-        let server = BootPackage {
+        let server = BootDatum {
             name: name.as_str().unwrap_or("unknown").to_string(),
-            package_type: Some(PackageType::Mcp),
+            datum_type: Some(DatumType::Mcp),
             desires: None,
             hint: hint.clone().unwrap_or_else(|| "MCP server".to_string()),
             install: None,
@@ -167,6 +171,17 @@ pub fn normalize_mcp_json(input: &str, dwiw: bool) -> Result<BootPackage> {
             image: None,
             docker_args: None,
             package_name: None,
+            env: json_value.get("env")
+                .and_then(|v| v.as_object())
+                .map(|obj| obj.iter()
+                    .filter_map(|(k, v)| v.as_str().map(|s| (k.clone(), s.to_string())))
+                    .collect()),
+            require: json_value.get("require")
+                .and_then(|v| v.as_array())
+                .map(|arr| arr.iter()
+                    .filter_map(|v| v.as_str())
+                    .map(|s| s.to_string())
+                    .collect()),
         };
         return Ok(server);
     }
@@ -181,9 +196,9 @@ pub fn normalize_mcp_json(input: &str, dwiw: bool) -> Result<BootPackage> {
             let server_name = &keys[0];
             let server_config = &mcp_servers[server_name];
             
-            let server = BootPackage {
+            let server = BootDatum {
                 name: server_name.to_string(),
-                package_type: Some(PackageType::Mcp),
+                datum_type: Some(DatumType::Mcp),
                 desires: None,
                 hint: hint.clone().unwrap_or_else(|| "MCP server".to_string()),
                 install: None,
@@ -206,6 +221,17 @@ pub fn normalize_mcp_json(input: &str, dwiw: bool) -> Result<BootPackage> {
                 image: None,
                 docker_args: None,
                 package_name: None,
+                env: server_config.get("env")
+                    .and_then(|v| v.as_object())
+                    .map(|obj| obj.iter()
+                        .filter_map(|(k, v)| v.as_str().map(|s| (k.clone(), s.to_string())))
+                        .collect()),
+                require: server_config.get("require")
+                    .and_then(|v| v.as_array())
+                    .map(|arr| arr.iter()
+                        .filter_map(|v| v.as_str())
+                        .map(|s| s.to_string())
+                        .collect()),
             };
             return Ok(server);
         }
@@ -220,9 +246,9 @@ pub fn normalize_mcp_json(input: &str, dwiw: bool) -> Result<BootPackage> {
         let server_name = &keys[0];
         let server_config = &json_value[server_name];
         
-        let server = BootPackage {
+        let server = BootDatum {
             name: server_name.to_string(),
-            package_type: Some(PackageType::Mcp),
+            datum_type: Some(DatumType::Mcp),
             desires: None,
             hint: hint.unwrap_or_else(|| "MCP server".to_string()),
             install: None,
@@ -245,6 +271,17 @@ pub fn normalize_mcp_json(input: &str, dwiw: bool) -> Result<BootPackage> {
             image: None,
             docker_args: None,
             package_name: None,
+            env: server_config.get("env")
+                .and_then(|v| v.as_object())
+                .map(|obj| obj.iter()
+                    .filter_map(|(k, v)| v.as_str().map(|s| (k.clone(), s.to_string())))
+                    .collect()),
+            require: server_config.get("require")
+                .and_then(|v| v.as_array())
+                .map(|arr| arr.iter()
+                    .filter_map(|v| v.as_str())
+                    .map(|s| s.to_string())
+                    .collect()),
         };
         return Ok(server);
     }
@@ -267,82 +304,82 @@ pub fn create_ai_toml_config(config: &AiConfig, path: &str) -> Result<()> {
     Ok(())
 }
 
-pub fn create_unified_toml_config(package: &BootPackage, path: &str) -> Result<()> {
+pub fn create_unified_toml_config(datum: &BootDatum, path: &str) -> Result<()> {
     let config = UnifiedConfig {
-        b00t: package.clone(),
+        b00t: datum.clone(),
     };
 
     let toml_content = toml::to_string(&config)
         .context("Failed to serialize config to TOML")?;
 
-    // Use explicit package_type or default to Traditional
-    let pkg_type = package.package_type.clone().unwrap_or(PackageType::Traditional);
-    let suffix = match pkg_type {
-        PackageType::Mcp => ".mcp.toml",
-        PackageType::Bash => ".bash.toml",
-        PackageType::Vscode => ".vscode.toml",
-        PackageType::Docker => ".docker.toml",
-        PackageType::Apt => ".apt.toml",
-        PackageType::Nix => ".nix.toml",
-        PackageType::Ai => ".ai.toml",
-        PackageType::Traditional => ".toml",
+    // Use explicit datum_type or default to Unknown
+    let datum_type = datum.datum_type.clone().unwrap_or(DatumType::Unknown);
+    let suffix = match datum_type {
+        DatumType::Mcp => ".mcp.toml",
+        DatumType::Bash => ".bash.toml",
+        DatumType::Vscode => ".vscode.toml",
+        DatumType::Docker => ".docker.toml",
+        DatumType::Apt => ".apt.toml",
+        DatumType::Nix => ".nix.toml",
+        DatumType::Ai => ".ai.toml",
+        DatumType::Unknown => ".toml",
     };
 
     let mut path_buf = std::path::PathBuf::new();
     path_buf.push(shellexpand::tilde(path).to_string());
-    path_buf.push(format!("{}{}", package.name, suffix));
+    path_buf.push(format!("{}{}", datum.name, suffix));
 
     std::fs::write(&path_buf, toml_content)
         .context(format!("Failed to write config to {}", path_buf.display()))?;
 
-    println!("Created {} config: {}", pkg_type.to_string(), path_buf.display());
+    println!("Created {} config: {}", datum_type.to_string(), path_buf.display());
     Ok(())
 }
 
-impl std::fmt::Display for PackageType {
+impl std::fmt::Display for DatumType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            PackageType::Traditional => write!(f, "traditional"),
-            PackageType::Mcp => write!(f, "MCP"),
-            PackageType::Bash => write!(f, "bash"),
-            PackageType::Vscode => write!(f, "VSCode"),
-            PackageType::Docker => write!(f, "docker"),
-            PackageType::Apt => write!(f, "apt"),
-            PackageType::Nix => write!(f, "nix"),
-            PackageType::Ai => write!(f, "AI"),
+            DatumType::Unknown => write!(f, "unknown"),
+            DatumType::Mcp => write!(f, "MCP"),
+            DatumType::Bash => write!(f, "bash"),
+            DatumType::Vscode => write!(f, "VSCode"),
+            DatumType::Docker => write!(f, "docker"),
+            DatumType::Apt => write!(f, "apt"),
+            DatumType::Nix => write!(f, "nix"),
+            DatumType::Ai => write!(f, "AI"),
         }
     }
 }
 
-impl PackageType {
-    pub fn from_filename_extension(filename: &str) -> PackageType {
+impl DatumType {
+    pub fn from_filename_extension(filename: &str) -> DatumType {
         if filename.ends_with(".cli.toml") {
-            PackageType::Traditional
+            DatumType::Unknown
         } else if filename.ends_with(".mcp.toml") {
-            PackageType::Mcp
+            DatumType::Mcp
         } else if filename.ends_with(".bash.toml") {
-            PackageType::Bash
+            DatumType::Bash
         } else if filename.ends_with(".vscode.toml") {
-            PackageType::Vscode
+            DatumType::Vscode
         } else if filename.ends_with(".docker.toml") {
-            PackageType::Docker
+            DatumType::Docker
         } else if filename.ends_with(".apt.toml") {
-            PackageType::Apt
+            DatumType::Apt
         } else if filename.ends_with(".nix.toml") {
-            PackageType::Nix
+            DatumType::Nix
         } else if filename.ends_with(".ai.toml") {
-            PackageType::Ai
+            DatumType::Ai
         } else {
-            PackageType::Traditional // Default fallback for .toml files
+            DatumType::Unknown // Default fallback for .toml files
         }
     }
 }
 
-impl BootPackage {
-    pub fn get_package_type(&self, filename: Option<&str>) -> PackageType {
-        self.package_type.clone().unwrap_or_else(|| {
-            filename.map(PackageType::from_filename_extension)
-                   .unwrap_or(PackageType::Traditional)
+impl BootDatum {
+    pub fn get_datum_type(&self, filename: Option<&str>) -> DatumType {
+        self.datum_type.clone().unwrap_or_else(|| {
+            filename.map(DatumType::from_filename_extension)
+                   .unwrap_or(DatumType::Unknown)
         })
     }
 }
