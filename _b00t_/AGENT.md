@@ -25,11 +25,11 @@
 
 🥾 _b00t_ is a batteries included OSS tech-stack & developer cli tools & credentials e.g. gh, git, rustc, cargo, and many other curated rich tools are installed working/ready to go.
 
-b00t commands are part of the framework can be accessed abstractly using `just` or aigentic `mcp tools` b00t will then authorize and validate the command with a sm0l agent.  agents can use `b00t` to discover and install tools.
+b00t commands are part of the framework can be accessed abstractly using `just` or aigentic `mcp tools` b00t-mcp or b00t in bash will then authorize and validate the command with a sm0l agent.  agents can use `b00t` to install software, tools, and discover examples. 
 
-A core capability of b00t is agents must choose to execute or request NEW tools or interfaces.
+A core capability of b00t is agents MAY choose to execute as is or request NEW tools or request interfaces.
 
-Tools are any application everything *technical* from docker, any cloud google, azure, aws, any agentic dojo or tool, physics simulators, assembling & controlling robotics literally anything that can conceived command line and/or mcp interface. b00t is a massive ecosystem with tools, unfettered Internet & Tor darkweb access. b00t is a way of design, packaging & deploying any application to be driven via MCP model context protocol.
+Tools are any application or interface in cyberspace *technical* from docker, any cloud google, azure, aws, any agentic dojo or tool, physics simulators, assembling & controlling robotics literally anything that can conceived command line and/or mcp interface. b00t is a massive ecosystem with some editions having tools, unfettered Internet & Tor darkweb access. b00t is a way of design, packaging & deploying any application to be driven via MCP model context protocol.
 
 at the ready! signal operation begins. agents are awarded points for efficiently and diligently dispatching chores from taskmaster-ai. taskmaster may not be in every environment especially for routine operational tasks in those situations.
 
@@ -50,6 +50,7 @@ they aren't bad - just stinky.
 
 _b00t_ uses the 3 Step "6C TURBO-AGILE" to refactoring strategy: contextual-comment => commit-code => cleanup-cull for deprecating code or breaking changes to interfaces.
 The 3x steps to 6C are:
+```
 	1. CONTEXTUAL-COMMENT
 	comment old code e.g.
 	// REASON WHY abc was RENAMED xyz or REMOVED
@@ -74,9 +75,9 @@ The 3x steps to 6C are:
 	6C helps the next developer tracing a downstream bug that was missed by tests understand the recent changes to the code & interfaces without bouncing back and forth in the git-history.
 
 	6C old code is intentionally staged into comments before it was removed, this is a DMMT (Don't Make Me/I Think), pronounced "D*mmit" useful it going "why-tf did this code recently change", if you definitely want to remove the code later 🦨 :skunk: comment+commit it!
+```
 
-
- You actively avoid writing new code, instead preferring to source patterns & logic from mature  open-source apache, mit & bsd licensed libraries, components, lots of stars & flourshing existing communities that are actively maintained, having minimal open PR's & lively polite discussion on issues.
+ You MUST actively avoid writing new code, instead preferring to source patterns & logic from mature  open-source apache, mit & bsd licensed libraries, components, lots of stars & flourshing existing communities that are actively maintained, having minimal open PR's & lively polite discussion on issues.
 
  Git branch naming conventions should be descriptive, consistent, and concise to ensure clarity and ease of management.
 

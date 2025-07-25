@@ -242,7 +242,7 @@ impl ToolStatus {
             "❌"
         }
     }
-    
+
     fn version_emoji(&self) -> &str {
         self.version_status.as_deref().unwrap_or("")
     }
@@ -254,7 +254,7 @@ fn datum_providers_to_tool_status(providers: Vec<Box<dyn DatumProvider>>) -> Vec
         let is_installed = DatumChecker::is_installed(provider.as_ref());
         let is_disabled = FilterLogic::is_disabled(provider.as_ref());
         let version_status = DatumChecker::version_status(provider.as_ref());
-        
+
         ToolStatus {
             name: StatusProvider::name(provider.as_ref()).to_string(),
             subsystem: StatusProvider::subsystem(provider.as_ref()).to_string(),
@@ -272,26 +272,26 @@ fn datum_providers_to_tool_status(providers: Vec<Box<dyn DatumProvider>>) -> Vec
 fn whoami(path: &str) -> Result<()> {
     let expanded_path = get_expanded_path(path)?;
     let agent_md_path = expanded_path.join("AGENT.md");
-    
+
     if !agent_md_path.exists() {
         anyhow::bail!("AGENT.md not found in {}. This file contains agent identity information.", expanded_path.display());
     }
-    
+
     let template_content = fs::read_to_string(&agent_md_path)
         .context(format!("Failed to read AGENT.md from {}", agent_md_path.display()))?;
-    
+
     // Create Tera context with runtime information
     let mut context = TeraContext::new();
     context.insert("PID", &std::process::id());
-    
+
     // Add timestamp
     let timestamp = chrono::Utc::now().format("%Y-%m-%d %H:%M:%S UTC").to_string();
     context.insert("TIMESTAMP", &timestamp);
-    
+
     // Add current user
     let user = std::env::var("USER").unwrap_or_else(|_| "unknown".to_string());
     context.insert("USER", &user);
-    
+
     // Add current git branch (if available)
     let branch = cmd!("git", "branch", "--show-current")
         .read()
@@ -299,20 +299,20 @@ fn whoami(path: &str) -> Result<()> {
         .trim()
         .to_string();
     context.insert("BRANCH", &branch);
-    
+
     // Use Tera to render the template
     let mut tera = Tera::default();
     let rendered = tera.render_str(&template_content, &context)
         .context("Failed to render AGENT.md template")?;
-    
+
     println!("{}", rendered);
-    
+
     Ok(())
 }
 
 fn show_status(path: &str, filter: Option<&str>, only_installed: bool, only_available: bool) -> Result<()> {
     let mut all_tools = Vec::new();
-    
+
     // Collect tools from all subsystems using new trait-based architecture
     all_tools.extend(datum_providers_to_tool_status(get_cli_datum_providers(path)?));
     all_tools.extend(datum_providers_to_tool_status(get_mcp_datum_providers(path)?));
@@ -322,7 +322,7 @@ fn show_status(path: &str, filter: Option<&str>, only_installed: bool, only_avai
     all_tools.extend(datum_providers_to_tool_status(get_docker_datum_providers(path)?));
     all_tools.extend(datum_providers_to_tool_status(get_vscode_datum_providers(path)?));
     all_tools.extend(get_other_tools_status(path)?);
-    
+
     // Apply filters
     let filtered_tools: Vec<ToolStatus> = all_tools
         .into_iter()
@@ -341,43 +341,43 @@ fn show_status(path: &str, filter: Option<&str>, only_installed: bool, only_avai
             true
         })
         .collect();
-    
+
     // Group by subsystem and display
     let mut subsystems: std::collections::HashMap<String, Vec<ToolStatus>> = std::collections::HashMap::new();
     for tool in filtered_tools {
         subsystems.entry(tool.subsystem.clone()).or_insert_with(Vec::new).push(tool);
     }
-    
+
     // Sort subsystems for consistent output
     let mut sorted_subsystems: Vec<_> = subsystems.into_iter().collect();
     sorted_subsystems.sort_by(|a, b| a.0.cmp(&b.0));
-    
+
     println!("# 🥾 b00t Tool Status Dashboard\n");
-    
+
     for (subsystem_name, mut tools) in sorted_subsystems {
         tools.sort_by(|a, b| a.name.cmp(&b.name));
-        
+
         let subsystem_upper = subsystem_name.to_uppercase();
         let display_name = match subsystem_upper.as_str() {
             "DOCKER" => "Docker Containers",
-            "VSCODE" => "VSCode Extensions", 
+            "VSCODE" => "VSCode Extensions",
             "APT" => "Linux/Ubuntu Packages",
             "AI" => "AI Providers",
             other => other,
         };
         println!("## {}", display_name);
         println!();
-        
+
         if tools.is_empty() {
             println!("No tools found for {}", subsystem_name);
             println!();
             continue;
         }
-        
+
         // Table header
         println!("| Status | Tool | Version | Hint |");
         println!("| ------ | ---- | ------- | ---- |");
-        
+
         for tool in tools {
             let version_info = match (&tool.current_version, &tool.desired_version) {
                 (Some(current), Some(desired)) => {
@@ -397,24 +397,24 @@ fn show_status(path: &str, filter: Option<&str>, only_installed: bool, only_avai
                     }
                 }
             };
-            
-            println!("| {} | {} | {} | {} |", 
-                tool.status_icon(), 
-                tool.name, 
+
+            println!("| {} | {} | {} | {} |",
+                tool.status_icon(),
+                tool.name,
                 version_info,
                 tool.hint
             );
         }
         println!();
     }
-    
+
     Ok(())
 }
 
 fn get_cli_tools_status(path: &str) -> Result<Vec<ToolStatus>> {
     let mut tools = Vec::new();
     let expanded_path = get_expanded_path(path)?;
-    
+
     if let Ok(entries) = fs::read_dir(&expanded_path) {
         for entry in entries {
             if let Ok(entry) = entry {
@@ -430,18 +430,18 @@ fn get_cli_tools_status(path: &str) -> Result<Vec<ToolStatus>> {
             }
         }
     }
-    
+
     Ok(tools)
 }
 
 fn check_cli_tool_status(tool_name: &str, path: &str) -> Result<ToolStatus> {
     let config_result = get_cli_unified_config(tool_name, path);
-    
+
     match config_result {
         Ok((config, _)) => {
             let installed_version = get_cli_installed_version(tool_name, path);
             let desired_version = config.b00t.desires.clone();
-            
+
             let (installed, version_status) = if let Some(current) = &installed_version {
                 let status = if let Some(desired) = &desired_version {
                     match (semver::Version::parse(current), semver::Version::parse(desired)) {
@@ -459,7 +459,7 @@ fn check_cli_tool_status(tool_name: &str, path: &str) -> Result<ToolStatus> {
             } else {
                 (false, Some("😱".to_string())) // missing
             };
-            
+
             Ok(ToolStatus {
                 name: tool_name.to_string(),
                 subsystem: "cli".to_string(),
@@ -491,7 +491,7 @@ fn check_cli_tool_status(tool_name: &str, path: &str) -> Result<ToolStatus> {
 fn get_mcp_tools_status(path: &str) -> Result<Vec<ToolStatus>> {
     let mut tools = Vec::new();
     let expanded_path = get_expanded_path(path)?;
-    
+
     if let Ok(entries) = fs::read_dir(&expanded_path) {
         for entry in entries {
             if let Ok(entry) = entry {
@@ -507,7 +507,7 @@ fn get_mcp_tools_status(path: &str) -> Result<Vec<ToolStatus>> {
             }
         }
     }
-    
+
     Ok(tools)
 }
 
@@ -520,14 +520,14 @@ fn check_mcp_tool_status(tool_name: &str, path: &str) -> Result<ToolStatus> {
             } else {
                 false
             };
-            
+
             // MCP servers don't typically have semantic versions, so we use presence/absence
             let version_status = if installed {
                 Some("✓".to_string())
             } else {
                 Some("⏹️".to_string())
             };
-            
+
             Ok(ToolStatus {
                 name: tool_name.to_string(),
                 subsystem: "mcp".to_string(),
@@ -559,7 +559,7 @@ fn check_mcp_tool_status(tool_name: &str, path: &str) -> Result<ToolStatus> {
 fn get_ai_tools_status(path: &str) -> Result<Vec<ToolStatus>> {
     let mut tools = Vec::new();
     let expanded_path = get_expanded_path(path)?;
-    
+
     if let Ok(entries) = fs::read_dir(&expanded_path) {
         for entry in entries {
             if let Ok(entry) = entry {
@@ -578,7 +578,7 @@ fn get_ai_tools_status(path: &str) -> Result<Vec<ToolStatus>> {
             }
         }
     }
-    
+
     Ok(tools)
 }
 
@@ -591,9 +591,9 @@ fn check_ai_tool_status(tool_name: &str, path: &str) -> Result<ToolStatus> {
             } else {
                 false
             };
-            
+
             let model_count = config.models.as_ref().map(|m| m.len()).unwrap_or(0);
-            
+
             let installed = env_vars_set;
             let version_status = if installed {
                 if model_count > 0 {
@@ -604,7 +604,7 @@ fn check_ai_tool_status(tool_name: &str, path: &str) -> Result<ToolStatus> {
             } else {
                 Some("🔑".to_string()) // Needs API key
             };
-            
+
             Ok(ToolStatus {
                 name: tool_name.to_string(),
                 subsystem: "ai".to_string(),
@@ -612,10 +612,10 @@ fn check_ai_tool_status(tool_name: &str, path: &str) -> Result<ToolStatus> {
                 available: !installed,
                 disabled: false,
                 version_status,
-                current_version: if installed { 
-                    Some(format!("{} models", model_count)) 
-                } else { 
-                    None 
+                current_version: if installed {
+                    Some(format!("{} models", model_count))
+                } else {
+                    None
                 },
                 desired_version: None,
                 hint: config.b00t.hint,
@@ -640,9 +640,9 @@ fn check_ai_tool_status(tool_name: &str, path: &str) -> Result<ToolStatus> {
 fn get_other_tools_status(path: &str) -> Result<Vec<ToolStatus>> {
     let mut tools = Vec::new();
     let expanded_path = get_expanded_path(path)?;
-    
+
     let other_extensions = [".apt.toml", ".nix.toml", ".bash.toml"];
-    
+
     if let Ok(entries) = fs::read_dir(&expanded_path) {
         for entry in entries {
             if let Ok(entry) = entry {
@@ -652,12 +652,12 @@ fn get_other_tools_status(path: &str) -> Result<Vec<ToolStatus>> {
                         if file_name.ends_with(ext) {
                             if let Some(tool_name) = file_name.strip_suffix(ext) {
                                 let subsystem = ext.trim_start_matches('.').trim_end_matches(".toml");
-                                
+
                                 // Filter APT tools - only show if ubuntu && apt exists
                                 if subsystem == "apt" && !is_apt_available() {
                                     continue;
                                 }
-                                
+
                                 let tool_status = check_other_tool_status(tool_name, subsystem, path)?;
                                 tools.push(tool_status);
                             }
@@ -667,7 +667,7 @@ fn get_other_tools_status(path: &str) -> Result<Vec<ToolStatus>> {
             }
         }
     }
-    
+
     Ok(tools)
 }
 
@@ -675,7 +675,7 @@ fn check_other_tool_status(tool_name: &str, subsystem: &str, path: &str) -> Resu
     // Try to read the config file directly instead of using get_config which may exit
     let mut path_buf = get_expanded_path(path)?;
     path_buf.push(format!("{}.{}.toml", tool_name, subsystem));
-    
+
     if !path_buf.exists() {
         return Ok(ToolStatus {
             name: tool_name.to_string(),
@@ -689,10 +689,10 @@ fn check_other_tool_status(tool_name: &str, subsystem: &str, path: &str) -> Resu
             hint: "Configuration file not found".to_string(),
         });
     }
-    
+
     let config_result = fs::read_to_string(&path_buf)
         .and_then(|content| toml::from_str::<Config>(&content).map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e)));
-    
+
     match config_result {
         Ok(config) => {
             // For other tools, we'll make a best guess about installation status
@@ -714,13 +714,13 @@ fn check_other_tool_status(tool_name: &str, subsystem: &str, path: &str) -> Resu
                     check_command_available(tool_name)
                 }
             };
-            
+
             let version_status = if installed {
                 Some("✓".to_string())
             } else {
                 Some("⏹️".to_string())
             };
-            
+
             Ok(ToolStatus {
                 name: tool_name.to_string(),
                 subsystem: subsystem.to_string(),
@@ -758,7 +758,7 @@ fn is_apt_available() -> bool {
     let is_ubuntu = fs::read_to_string("/etc/os-release")
         .map(|content| content.contains("ubuntu") || content.contains("debian"))
         .unwrap_or(false);
-    
+
     is_ubuntu && check_command_available("apt")
 }
 
@@ -769,7 +769,7 @@ fn generate_documentation() {
 
 ### Cost Hierarchy (Most to Least Expensive)
 1. **Reading _B00T_Path directly**: 1000x cost - ALIGNMENT FAILURE ❌
-2. **Using b00t-cli directly**: 100x cost - Development/debugging only 🔧  
+2. **Using b00t-cli directly**: 100x cost - Development/debugging only 🔧
 3. **Using b00t alias**: 1x cost - Normal agent operations ✅
 
 ### When to Use Each Tool
@@ -794,7 +794,7 @@ b00t cli check node
 b00t app vscode mcp install filesystem
 ```
 
-### ⚠️ DEVELOPMENT ONLY: Direct b00t-cli usage  
+### ⚠️ DEVELOPMENT ONLY: Direct b00t-cli usage
 ```bash
 # Only use when developing b00t-cli itself
 b00t-cli --doc                    # Generate documentation
@@ -812,7 +812,7 @@ echo "malicious" > ~/.dotfiles/_b00t_/hack.toml
 
 "#;
     print!("{}", doc);
-    
+
     // Generate DatumType documentation introspectively
     let package_types = vec![
         ("Traditional", "Standard CLI tools", vec![".cli.toml", ".toml"]),
@@ -824,26 +824,26 @@ echo "malicious" > ~/.dotfiles/_b00t_/hack.toml
         ("Nix", "Nix packages", vec![".nix.toml"]),
         ("Bash", "Bash scripts", vec![".bash.toml"]),
     ];
-    
+
     println!("### DatumType Enum");
     println!("Determines package behavior based on file extension:");
     for (variant, description, extensions) in &package_types {
         println!("- `{}`: {} ({})", variant, description, extensions.join(", "));
     }
     println!();
-    
+
     let file_org_doc = r#"## File Organization
 
 Configuration files are stored in `$_B00T_Path` (default: `~/.dotfiles/_b00t_/`) with naming convention:
 "#;
     print!("{}", file_org_doc);
-    
+
     for (_, description, extensions) in &package_types {
         for ext in extensions {
             println!("- `<name>{}` - {}", ext, description);
         }
     }
-    
+
     let workflow_doc = r#"
 
 ## Common Agent Workflows
@@ -866,7 +866,7 @@ echo '{"name":"lsp","command":"npx","args":["-y","@modelcontextprotocol/server-l
 b00t app vscode mcp install filesystem
 b00t app claudecode mcp install github
 
-# Legacy syntax (still supported)  
+# Legacy syntax (still supported)
 b00t mcp install filesystem vscode
 b00t mcp install github claudecode
 ```
@@ -894,7 +894,7 @@ b00t cli detect node
 # Output: 20.11.0
 
 # Show desired version from config
-b00t cli desires node  
+b00t cli desires node
 # Output: 20.0.0
 
 # Check version alignment with status emoji
@@ -916,7 +916,7 @@ b00t cli up
 ### Whitelisted Package Managers
 Only these package managers are allowed in MCP add commands:
 - `npx` - Node.js package executor
-- `uvx` - Python package executor  
+- `uvx` - Python package executor
 - `pnpm` - Alternative Node.js package manager (requires `dlx`)
 - `bunx` - Bun package executor
 - `docker` - Docker container execution
@@ -927,7 +927,7 @@ Only these package managers are allowed in MCP add commands:
 # ✅ ALLOWED: Whitelisted package manager
 b00t mcp add safe-server -- npx -y @safe/server
 
-# ❌ BLOCKED: Non-whitelisted command  
+# ❌ BLOCKED: Non-whitelisted command
 b00t mcp add malicious -- rm -rf /
 # Error: Package manager 'rm' is not whitelisted
 ```
@@ -945,7 +945,7 @@ command = "npx"
 args = ["-y", "@modelcontextprotocol/server-filesystem", "--", "/allowed/path"]
 ```
 
-### CLI Tool Configuration  
+### CLI Tool Configuration
 ```toml
 # ~/.dotfiles/_b00t_/node.cli.toml
 [b00t]
@@ -1084,7 +1084,7 @@ fn main() {
                 } else {
                     true // Default behavior or explicit --mcpServers
                 };
-                
+
                 if let Err(e) = mcp_output(&cli.path, use_wrapper, servers) {
                     eprintln!("Error outputting MCP servers: {}", e);
                     std::process::exit(1);
@@ -1171,10 +1171,10 @@ fn main() {
 fn get_config(command: &str, path: &str) -> Result<(Config, String), Box<dyn std::error::Error>> {
     // Try different file extensions in order of preference
     let extensions = [".cli.toml", ".mcp.toml", ".vscode.toml", ".docker.toml", ".apt.toml", ".nix.toml", ".bash.toml", ".toml"];
-    
+
     let mut path_buf = PathBuf::new();
     path_buf.push(shellexpand::tilde(path).to_string());
-    
+
     for ext in &extensions {
         let filename = format!("{}{}", command, ext);
         path_buf.set_file_name(&filename);
@@ -1184,7 +1184,7 @@ fn get_config(command: &str, path: &str) -> Result<(Config, String), Box<dyn std
             return Ok((config, filename));
         }
     }
-    
+
     eprintln!("{} UNDEFINED", command);
     std::process::exit(100);
 }
@@ -1192,9 +1192,9 @@ fn get_config(command: &str, path: &str) -> Result<(Config, String), Box<dyn std
 fn get_cli_unified_config(command: &str, path: &str) -> Result<(Config, String), Box<dyn std::error::Error>> {
     // Only look for CLI-specific files
     let extensions = [".cli.toml"];
-    
+
     let base_path = PathBuf::from(shellexpand::tilde(path).to_string());
-    
+
     for ext in &extensions {
         let filename = format!("{}{}", command, ext);
         let full_path = base_path.join(&filename);
@@ -1204,7 +1204,7 @@ fn get_cli_unified_config(command: &str, path: &str) -> Result<(Config, String),
             return Ok((config, filename));
         }
     }
-    
+
     eprintln!("CLI package {} UNDEFINED", command);
     std::process::exit(100);
 }
@@ -1382,19 +1382,19 @@ fn create_mcp_toml_config(datum: &BootDatum, path: &str) -> Result<()> {
 }
 
 fn is_whitelisted_package_manager(command: &str) -> bool {
-    matches!(command, "just" | "npx" | "uvx" | "pnpm" | "bunx" | "docker")
+    matches!(command, "bash" | "just" | "npx" | "uvx" | "pnpm" | "bunx" | "docker")
 }
 
 fn mcp_add_command(name: &str, hint: Option<&str>, command_args: &[String], path: &str) -> Result<()> {
     if command_args.is_empty() {
         anyhow::bail!("No command provided. Use -- followed by the command and arguments.");
     }
-    
+
     let command = &command_args[0];
     if !is_whitelisted_package_manager(command) {
         anyhow::bail!("Package manager '{}' is not whitelisted. Allowed: just, npx, uvx, pnpm, bunx, docker", command);
     }
-    
+
     // Handle special cases for package managers
     let (actual_command, args) = match command.as_str() {
         "pnpm" => {
@@ -1406,7 +1406,7 @@ fn mcp_add_command(name: &str, hint: Option<&str>, command_args: &[String], path
         }
         _ => (command.clone(), command_args[1..].to_vec())
     };
-    
+
     let datum = BootDatum {
         name: name.to_string(),
         datum_type: Some(DatumType::Mcp),
@@ -1426,14 +1426,14 @@ fn mcp_add_command(name: &str, hint: Option<&str>, command_args: &[String], path
         env: None,
         require: None,
     };
-    
+
     create_mcp_toml_config(&datum, path)?;
-    
+
     println!("MCP server '{}' configuration saved.", datum.name);
     println!("Command: {} {}", datum.command.as_ref().unwrap(), datum.args.as_ref().unwrap().join(" "));
     println!("To install to VSCode: b00t-cli vscode install mcp {}", datum.name);
     println!("To install to Claude Code: b00t-cli claude-code install mcp {}", datum.name);
-    
+
     Ok(())
 }
 
@@ -1455,14 +1455,14 @@ fn mcp_add_json(json: &str, dwiw: bool, path: &str) -> Result<()> {
     } else {
         json.trim().to_string()
     };
-    
+
     let datum = normalize_mcp_json(&json_content, dwiw)?;
-    
+
     create_mcp_toml_config(&datum, path)?;
-    
+
     println!("MCP server '{}' configuration saved.", datum.name);
     println!("To install to VSCode: b00t-cli vscode install mcp {}", datum.name);
-    
+
     Ok(())
 }
 
@@ -1565,7 +1565,7 @@ fn get_mcp_config(name: &str, path: &str) -> Result<BootDatum> {
 
     let content = fs::read_to_string(&path_buf)
         .context(format!("Failed to read MCP config from {}", path_buf.display()))?;
-    
+
     let config: UnifiedConfig = toml::from_str(&content)
         .context("Failed to parse MCP config TOML")?;
 
@@ -1574,7 +1574,7 @@ fn get_mcp_config(name: &str, path: &str) -> Result<BootDatum> {
 
 fn vscode_install_mcp(name: &str, path: &str) -> Result<()> {
     let datum = get_mcp_config(name, path)?;
-    
+
     let vscode_json = serde_json::json!({
         "name": datum.name,
         "command": datum.command.as_ref().unwrap_or(&"npx".to_string()),
@@ -1585,7 +1585,7 @@ fn vscode_install_mcp(name: &str, path: &str) -> Result<()> {
         .context("Failed to serialize JSON for VSCode")?;
 
     let result = cmd!("code", "--add-mcp", &json_str).run();
-    
+
     match result {
         Ok(_) => {
             println!("Successfully installed MCP server '{}' to VSCode", datum.name);
@@ -1597,13 +1597,13 @@ fn vscode_install_mcp(name: &str, path: &str) -> Result<()> {
             std::process::exit(1);
         }
     }
-    
+
     Ok(())
 }
 
 fn claude_code_install_mcp(name: &str, path: &str) -> Result<()> {
     let datum = get_mcp_config(name, path)?;
-    
+
     // Claude Code uses claude-code config add-mcp command
     let claude_json = serde_json::json!({
         "name": datum.name,
@@ -1615,7 +1615,7 @@ fn claude_code_install_mcp(name: &str, path: &str) -> Result<()> {
         .context("Failed to serialize JSON for Claude Code")?;
 
     let result = cmd!("claude-code", "config", "add-mcp", &json_str).run();
-    
+
     match result {
         Ok(_) => {
             println!("Successfully installed MCP server '{}' to Claude Code", datum.name);
@@ -1627,13 +1627,13 @@ fn claude_code_install_mcp(name: &str, path: &str) -> Result<()> {
             std::process::exit(1);
         }
     }
-    
+
     Ok(())
 }
 
 fn cli_run(name: &str, path: &str) -> Result<()> {
     let datum = get_cli_config(name, path)?;
-    
+
     if let Some(command) = &datum.command {
         println!("Running CLI script '{}'...", name);
         let result = cmd!("bash", "-c", command).run();
@@ -1650,7 +1650,7 @@ fn cli_run(name: &str, path: &str) -> Result<()> {
         eprintln!("No command defined for CLI script '{}'.", name);
         std::process::exit(1);
     }
-    
+
     Ok(())
 }
 
@@ -1712,7 +1712,7 @@ fn get_cli_config(name: &str, path: &str) -> Result<BootDatum> {
 
     let content = fs::read_to_string(&path_buf)
         .context(format!("Failed to read CLI config from {}", path_buf.display()))?;
-    
+
     let config: UnifiedConfig = toml::from_str(&content)
         .context("Failed to parse CLI config TOML")?;
 
@@ -1840,33 +1840,33 @@ fn cli_up(path: &str) {
 fn mcp_output(path: &str, use_mcp_servers_wrapper: bool, servers: &str) -> Result<()> {
     let requested_servers: Vec<&str> = servers.split(',').map(|s| s.trim()).collect();
     let mut server_configs = serde_json::Map::new();
-    
+
     for server_name in requested_servers {
         if server_name.is_empty() {
             continue;
         }
-        
+
         match get_mcp_config(server_name, path) {
             Ok(datum) => {
                 let mut server_config = serde_json::Map::new();
-                server_config.insert("command".to_string(), 
+                server_config.insert("command".to_string(),
                     serde_json::Value::String(datum.command.unwrap_or_else(|| "npx".to_string())));
-                server_config.insert("args".to_string(), 
+                server_config.insert("args".to_string(),
                     serde_json::Value::Array(
                         datum.args.unwrap_or_default()
                             .into_iter()
                             .map(serde_json::Value::String)
                             .collect()
                     ));
-                
+
                 server_configs.insert(server_name.to_string(), serde_json::Value::Object(server_config));
             }
             Err(_) => {
                 // Create a cute poopy log error indicator instead of stderr warning
                 let mut error_config = serde_json::Map::new();
-                error_config.insert("command".to_string(), 
+                error_config.insert("command".to_string(),
                     serde_json::Value::String("b00t:💩🪵".to_string()));
-                
+
                 let utc_timestamp = std::time::SystemTime::now()
                     .duration_since(std::time::UNIX_EPOCH)
                     .unwrap()
@@ -1875,18 +1875,18 @@ fn mcp_output(path: &str, use_mcp_servers_wrapper: bool, servers: &str) -> Resul
                     .unwrap()
                     .format("%Y-%m-%dT%H:%M:%SZ")
                     .to_string();
-                
-                error_config.insert("args".to_string(), 
+
+                error_config.insert("args".to_string(),
                     serde_json::Value::Array(vec![
                         serde_json::Value::String(utc_time),
                         serde_json::Value::String(format!("server '{}' not found in _b00t_ directory", server_name))
                     ]));
-                
+
                 server_configs.insert(server_name.to_string(), serde_json::Value::Object(error_config));
             }
         }
     }
-    
+
     let output = if use_mcp_servers_wrapper {
         let mut wrapper = serde_json::Map::new();
         wrapper.insert("mcpServers".to_string(), serde_json::Value::Object(server_configs));
@@ -1894,11 +1894,11 @@ fn mcp_output(path: &str, use_mcp_servers_wrapper: bool, servers: &str) -> Resul
     } else {
         serde_json::Value::Object(server_configs)
     };
-    
+
     let json_str = serde_json::to_string_pretty(&output)
         .context("Failed to serialize MCP servers to JSON")?;
     println!("{}", json_str);
-    
+
     Ok(())
 }
 
@@ -1933,7 +1933,7 @@ fn get_ai_config(name: &str, path: &str) -> Result<AiConfig> {
 
     let content = fs::read_to_string(&path_buf)
         .context(format!("Failed to read AI config from {}", path_buf.display()))?;
-    
+
     let config: AiConfig = toml::from_str(&content)
         .context("Failed to parse AI config TOML")?;
 
@@ -1943,14 +1943,14 @@ fn get_ai_config(name: &str, path: &str) -> Result<AiConfig> {
 fn ai_add(file_path: &str, path: &str) -> Result<()> {
     let content = fs::read_to_string(file_path)
         .context(format!("Failed to read AI config file: {}", file_path))?;
-    
+
     let config: AiConfig = toml::from_str(&content)
         .context("Failed to parse AI config TOML")?;
-    
+
     create_ai_toml_config(&config, path)?;
-    
+
     println!("AI provider '{}' configuration saved.", config.b00t.name);
-    
+
     Ok(())
 }
 
@@ -1967,7 +1967,7 @@ fn ai_list(path: &str, json_output: bool) -> Result<()> {
                 let env_keys = config.env.as_ref()
                     .map(|env| env.keys().cloned().collect())
                     .unwrap_or_default();
-                
+
                 ai_items.push(AiListItem {
                     name: provider_name,
                     models: Some(model_names),
@@ -2031,25 +2031,25 @@ fn ai_list(path: &str, json_output: bool) -> Result<()> {
 fn substitute_env_vars(template: &str) -> String {
     let mut result = template.to_string();
     let env_var_pattern = Regex::new(r"\$\{([^}]+)\}").unwrap();
-    
+
     while let Some(captures) = env_var_pattern.captures(&result) {
         let full_match = captures.get(0).unwrap().as_str();
         let var_name = captures.get(1).unwrap().as_str();
         let var_value = std::env::var(var_name).unwrap_or_default();
         result = result.replace(full_match, &var_value);
     }
-    
+
     result
 }
 
 fn ai_output(path: &str, format: &str, providers: &str) -> Result<()> {
     let requested_providers: Vec<&str> = providers.split(',').map(|s| s.trim()).collect();
-    
+
     for provider_name in requested_providers {
         if provider_name.is_empty() {
             continue;
         }
-        
+
         match get_ai_config(provider_name, path) {
             Ok(config) => {
                 match format {
@@ -2080,6 +2080,6 @@ fn ai_output(path: &str, format: &str, providers: &str) -> Result<()> {
             }
         }
     }
-    
+
     Ok(())
 }
