@@ -314,7 +314,15 @@ fn show_status(path: &str, filter: Option<&str>, only_installed: bool, only_avai
     for (subsystem_name, mut tools) in sorted_subsystems {
         tools.sort_by(|a, b| a.name.cmp(&b.name));
         
-        println!("## {} Tools", subsystem_name.to_uppercase());
+        let subsystem_upper = subsystem_name.to_uppercase();
+        let display_name = match subsystem_upper.as_str() {
+            "DOCKER" => "Docker Containers",
+            "VSCODE" => "VSCode Extensions", 
+            "APT" => "Linux/Ubuntu Packages",
+            "AI" => "AI Providers",
+            other => other,
+        };
+        println!("## {}", display_name);
         println!();
         
         if tools.is_empty() {
@@ -517,7 +525,10 @@ fn get_ai_tools_status(path: &str) -> Result<Vec<ToolStatus>> {
                     if file_name.ends_with(".ai.toml") {
                         if let Some(tool_name) = file_name.strip_suffix(".ai.toml") {
                             let tool_status = check_ai_tool_status(tool_name, path)?;
-                            tools.push(tool_status);
+                            // Only include AI providers if their ENV vars are satisfied
+                            if tool_status.installed {
+                                tools.push(tool_status);
+                            }
                         }
                     }
                 }
@@ -598,6 +609,12 @@ fn get_other_tools_status(path: &str) -> Result<Vec<ToolStatus>> {
                         if file_name.ends_with(ext) {
                             if let Some(tool_name) = file_name.strip_suffix(ext) {
                                 let subsystem = ext.trim_start_matches('.').trim_end_matches(".toml");
+                                
+                                // Filter APT tools - only show if ubuntu && apt exists
+                                if subsystem == "apt" && !is_apt_available() {
+                                    continue;
+                                }
+                                
                                 let tool_status = check_other_tool_status(tool_name, subsystem, path)?;
                                 tools.push(tool_status);
                             }
@@ -699,6 +716,15 @@ fn check_other_tool_status(tool_name: &str, subsystem: &str, path: &str) -> Resu
 
 fn check_command_available(command: &str) -> bool {
     cmd!("which", command).read().is_ok()
+}
+
+fn is_apt_available() -> bool {
+    // Check if we're on Ubuntu/Debian and apt command exists
+    let is_ubuntu = fs::read_to_string("/etc/os-release")
+        .map(|content| content.contains("ubuntu") || content.contains("debian"))
+        .unwrap_or(false);
+    
+    is_ubuntu && check_command_available("apt")
 }
 
 fn generate_documentation() {
