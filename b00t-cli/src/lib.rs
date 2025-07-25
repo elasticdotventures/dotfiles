@@ -3,6 +3,11 @@ use regex::Regex;
 use anyhow::{Result, Context};
 
 pub mod traits;
+pub mod datum_ai;
+pub mod datum_apt;
+pub mod datum_bash;
+pub mod datum_docker;
+pub mod datum_vscode;
 pub use traits::*;
 
 #[derive(Deserialize, Serialize, Debug, Clone, PartialEq)]
@@ -391,4 +396,29 @@ pub fn create_mcp_toml_config(package: &BootDatum, path: &str) -> Result<()> {
 pub fn check_command_available(command: &str) -> bool {
     use duct::cmd;
     cmd!("which", command).read().is_ok()
+}
+
+pub fn get_expanded_path(path: &str) -> Result<std::path::PathBuf> {
+    Ok(std::path::PathBuf::from(shellexpand::tilde(path).to_string()))
+}
+
+pub fn get_config(command: &str, path: &str) -> Result<(UnifiedConfig, String), Box<dyn std::error::Error>> {
+    // Try different file extensions in order of preference
+    let extensions = [".cli.toml", ".mcp.toml", ".vscode.toml", ".docker.toml", ".apt.toml", ".nix.toml", ".bash.toml", ".toml"];
+    
+    let mut path_buf = std::path::PathBuf::new();
+    path_buf.push(shellexpand::tilde(path).to_string());
+    
+    for ext in &extensions {
+        let filename = format!("{}{}", command, ext);
+        path_buf.set_file_name(&filename);
+        if path_buf.exists() {
+            let content = std::fs::read_to_string(&path_buf)?;
+            let config: UnifiedConfig = toml::from_str(&content)?;
+            return Ok((config, filename));
+        }
+    }
+    
+    eprintln!("{} UNDEFINED", command);
+    std::process::exit(100);
 }

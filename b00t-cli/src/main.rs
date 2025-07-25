@@ -13,10 +13,20 @@ use b00t_cli::{normalize_mcp_json, McpListOutput, McpListItem, UnifiedConfig, Bo
 mod traits;
 mod datum_cli;
 mod datum_mcp;
+mod datum_ai;
+mod datum_apt;
+mod datum_bash;
+mod datum_docker;
+mod datum_vscode;
 
 use traits::*;
-use datum_cli::*;
-use datum_mcp::*;
+use datum_cli::get_cli_tools_status as get_cli_datum_providers;
+use datum_mcp::get_mcp_tools_status as get_mcp_datum_providers;
+use datum_ai::get_ai_tools_status as get_ai_datum_providers;
+use datum_apt::get_apt_tools_status as get_apt_datum_providers;
+use datum_bash::get_bash_tools_status as get_bash_datum_providers;
+use datum_docker::get_docker_tools_status as get_docker_datum_providers;
+use datum_vscode::get_vscode_tools_status as get_vscode_datum_providers;
 
 mod integration_tests;
 
@@ -238,6 +248,27 @@ impl ToolStatus {
     }
 }
 
+// Bridge function to convert trait-based DatumProviders to legacy ToolStatus
+fn datum_providers_to_tool_status(providers: Vec<Box<dyn DatumProvider>>) -> Vec<ToolStatus> {
+    providers.into_iter().map(|provider| {
+        let is_installed = DatumChecker::is_installed(provider.as_ref());
+        let is_disabled = FilterLogic::is_disabled(provider.as_ref());
+        let version_status = DatumChecker::version_status(provider.as_ref());
+        
+        ToolStatus {
+            name: StatusProvider::name(provider.as_ref()).to_string(),
+            subsystem: StatusProvider::subsystem(provider.as_ref()).to_string(),
+            installed: is_installed,
+            available: FilterLogic::is_available(provider.as_ref()),
+            disabled: is_disabled,
+            version_status: Some(version_status.emoji().to_string()),
+            current_version: DatumChecker::current_version(provider.as_ref()),
+            desired_version: DatumChecker::desired_version(provider.as_ref()),
+            hint: StatusProvider::hint(provider.as_ref()).to_string(),
+        }
+    }).collect()
+}
+
 fn whoami(path: &str) -> Result<()> {
     let expanded_path = get_expanded_path(path)?;
     let agent_md_path = expanded_path.join("AGENT.md");
@@ -282,10 +313,14 @@ fn whoami(path: &str) -> Result<()> {
 fn show_status(path: &str, filter: Option<&str>, only_installed: bool, only_available: bool) -> Result<()> {
     let mut all_tools = Vec::new();
     
-    // Collect tools from all subsystems
-    all_tools.extend(get_cli_tools_status(path)?);
-    all_tools.extend(get_mcp_tools_status(path)?);
-    all_tools.extend(get_ai_tools_status(path)?);
+    // Collect tools from all subsystems using new trait-based architecture
+    all_tools.extend(datum_providers_to_tool_status(get_cli_datum_providers(path)?));
+    all_tools.extend(datum_providers_to_tool_status(get_mcp_datum_providers(path)?));
+    all_tools.extend(datum_providers_to_tool_status(get_ai_datum_providers(path)?));
+    all_tools.extend(datum_providers_to_tool_status(get_apt_datum_providers(path)?));
+    all_tools.extend(datum_providers_to_tool_status(get_bash_datum_providers(path)?));
+    all_tools.extend(datum_providers_to_tool_status(get_docker_datum_providers(path)?));
+    all_tools.extend(datum_providers_to_tool_status(get_vscode_datum_providers(path)?));
     all_tools.extend(get_other_tools_status(path)?);
     
     // Apply filters
@@ -606,7 +641,7 @@ fn get_other_tools_status(path: &str) -> Result<Vec<ToolStatus>> {
     let mut tools = Vec::new();
     let expanded_path = get_expanded_path(path)?;
     
-    let other_extensions = [".vscode.toml", ".docker.toml", ".apt.toml", ".nix.toml", ".bash.toml"];
+    let other_extensions = [".apt.toml", ".nix.toml", ".bash.toml"];
     
     if let Ok(entries) = fs::read_dir(&expanded_path) {
         for entry in entries {
@@ -662,10 +697,6 @@ fn check_other_tool_status(tool_name: &str, subsystem: &str, path: &str) -> Resu
         Ok(config) => {
             // For other tools, we'll make a best guess about installation status
             let installed = match subsystem {
-                "docker" => {
-                    // Check if docker command is available
-                    check_command_available("docker")
-                }
                 "apt" => {
                     // Check if the package is installed via dpkg
                     if let Some(package_name) = &config.b00t.package_name {
@@ -673,10 +704,6 @@ fn check_other_tool_status(tool_name: &str, subsystem: &str, path: &str) -> Resu
                     } else {
                         check_command_available(tool_name)
                     }
-                }
-                "vscode" => {
-                    // Check if code command is available
-                    check_command_available("code")
                 }
                 "bash" => {
                     // Bash scripts are always "available" if configured
