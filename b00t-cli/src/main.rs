@@ -1502,16 +1502,16 @@ fn claude_code_install_mcp(name: &str, path: &str) -> Result<()> {
     let json_str = serde_json::to_string(&claude_json)
         .context("Failed to serialize JSON for Claude Code")?;
 
-    let result = cmd!("claude-code", "config", "add-mcp", &json_str).run();
+    let result = cmd!("claude", "mcp", "add-json", &datum.name, &json_str).run();
 
     match result {
         Ok(_) => {
             println!("Successfully installed MCP server '{}' to Claude Code", datum.name);
-            println!("Claude Code command: claude-code config add-mcp '{}'", json_str);
+            println!("Claude Code command: claude mcp add-json {} '{}'", datum.name, json_str);
         },
         Err(e) => {
             eprintln!("Failed to install MCP server to Claude Code: {}", e);
-            eprintln!("Manual command: claude-code config add-mcp '{}'", json_str);
+            eprintln!("Manual command: claude mcp add-json {} '{}'", datum.name, json_str);
             std::process::exit(1);
         }
     }
