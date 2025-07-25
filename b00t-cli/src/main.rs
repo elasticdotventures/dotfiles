@@ -10,6 +10,14 @@ use anyhow::{Result, Context};
 use tera::{Tera, Context as TeraContext};
 use b00t_cli::{normalize_mcp_json, McpListOutput, McpListItem, UnifiedConfig, BootDatum, DatumType, create_unified_toml_config, AiConfig, AiListOutput, AiListItem, create_ai_toml_config};
 
+mod traits;
+mod datum_cli;
+mod datum_mcp;
+
+use traits::*;
+use datum_cli::*;
+use datum_mcp::*;
+
 mod integration_tests;
 
 #[derive(Parser)]

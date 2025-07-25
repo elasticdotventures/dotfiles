@@ -2,6 +2,9 @@ use serde::{Deserialize, Serialize};
 use regex::Regex;
 use anyhow::{Result, Context};
 
+pub mod traits;
+pub use traits::*;
+
 #[derive(Deserialize, Serialize, Debug, Clone, PartialEq)]
 pub struct McpServer {
     pub name: String,
@@ -105,30 +108,27 @@ pub struct AiListItem {
 }
 
 pub fn extract_comments_and_clean_json(input: &str) -> (String, Option<String>) {
-    let comment_regex = Regex::new(r"^\s*//\s*(.*)$").unwrap();
+    let comment_re = Regex::new(r"//.*$").unwrap();
     
-    let mut comments = Vec::new();
-    let mut cleaned_lines = Vec::new();
+    let (mut cleaned_input, mut first_comment) = (String::new(), None);
     
     for line in input.lines() {
-        if let Some(caps) = comment_regex.captures(line) {
-            let comment = caps[1].trim();
-            if !comment.is_empty() {
-                comments.push(comment.to_string());
+        if let Some(cap) = comment_re.find(line) {
+            if first_comment.is_none() {
+                first_comment = Some(cap.as_str().trim_start_matches("//").trim().to_string());
+            }
+            let line_without_comment = line[..cap.start()].trim_end();
+            if !line_without_comment.is_empty() {
+                cleaned_input.push_str(line_without_comment);
+                cleaned_input.push('\n');
             }
         } else {
-            cleaned_lines.push(line);
+            cleaned_input.push_str(line);
+            cleaned_input.push('\n');
         }
     }
     
-    let cleaned_json = cleaned_lines.join("\n").trim().to_string();
-    let hint = if comments.is_empty() {
-        None
-    } else {
-        Some(comments.join(" "))
-    };
-    
-    (cleaned_json, hint)
+    (cleaned_input.trim().to_string(), first_comment)
 }
 
 pub fn clean_json_for_dwiw(input: &str) -> String {
@@ -289,13 +289,13 @@ pub fn normalize_mcp_json(input: &str, dwiw: bool) -> Result<BootDatum> {
     anyhow::bail!("Unable to parse MCP server configuration from JSON");
 }
 
-pub fn create_ai_toml_config(config: &AiConfig, path: &str) -> Result<()> {
-    let toml_content = toml::to_string(config)
+pub fn create_ai_toml_config(ai_config: &AiConfig, path: &str) -> Result<()> {
+    let toml_content = toml::to_string(ai_config)
         .context("Failed to serialize AI config to TOML")?;
 
     let mut path_buf = std::path::PathBuf::new();
     path_buf.push(shellexpand::tilde(path).to_string());
-    path_buf.push(format!("{}.ai.toml", config.b00t.name));
+    path_buf.push(format!("{}.ai.toml", ai_config.b00t.name));
 
     std::fs::write(&path_buf, toml_content)
         .context(format!("Failed to write AI config to {}", path_buf.display()))?;
@@ -384,104 +384,11 @@ impl BootDatum {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+pub fn create_mcp_toml_config(package: &BootDatum, path: &str) -> Result<()> {
+    create_unified_toml_config(package, path)
+}
 
-    #[test]
-    fn test_clean_json_for_dwiw() {
-        let input = r#"// This is a comment
-{
-  "name": "test",
-  // Another comment
-  "command": "npx"
-}"#;
-        
-        let expected = r#"{
-  "name": "test",
-  "command": "npx"
-}"#;
-        
-        assert_eq!(clean_json_for_dwiw(input), expected);
-    }
-
-    #[test]
-    fn test_normalize_mcp_json_direct_format() {
-        let input = r#"{"name": "filesystem", "command": "npx", "args": ["-y", "@modelcontextprotocol/server-filesystem"]}"#;
-        
-        let result = normalize_mcp_json(input, false).unwrap();
-        
-        assert_eq!(result.name, "filesystem");
-        assert_eq!(result.command, Some("npx".to_string()));
-        assert_eq!(result.args, Some(vec!["-y".to_string(), "@modelcontextprotocol/server-filesystem".to_string()]));
-        assert_eq!(result.hint, "MCP server");
-    }
-
-    #[test]
-    fn test_normalize_mcp_json_nested_format() {
-        let input = r#"{"playwright": {"command": "npx", "args": ["-y", "@executeautomation/playwright-mcp-server"]}}"#;
-        
-        let result = normalize_mcp_json(input, false).unwrap();
-        
-        assert_eq!(result.name, "playwright");
-        assert_eq!(result.command, Some("npx".to_string()));
-        assert_eq!(result.args, Some(vec!["-y".to_string(), "@executeautomation/playwright-mcp-server".to_string()]));
-        assert_eq!(result.hint, "MCP server");
-    }
-
-    #[test]
-    fn test_normalize_mcp_json_with_dwiw() {
-        let input = r#"// GitHub MCP server
-{
-  "github": {
-    // Provides GitHub API access
-    "command": "npx",
-    "args": ["-y", "@modelcontextprotocol/server-github"]
-  }
-}"#;
-        
-        let result = normalize_mcp_json(input, true).unwrap();
-        
-        assert_eq!(result.name, "github");
-        assert_eq!(result.command, Some("npx".to_string()));
-        assert_eq!(result.args, Some(vec!["-y".to_string(), "@modelcontextprotocol/server-github".to_string()]));
-        assert_eq!(result.hint, "GitHub MCP server Provides GitHub API access");
-    }
-
-    #[test]
-    fn test_normalize_mcp_json_defaults() {
-        let input = r#"{"test": {}}"#;
-        
-        let result = normalize_mcp_json(input, false).unwrap();
-        
-        assert_eq!(result.name, "test");
-        assert_eq!(result.command, Some("npx".to_string()));
-        assert_eq!(result.args, Some(Vec::<String>::new()));
-        assert_eq!(result.hint, "MCP server");
-    }
-
-    #[test]
-    fn test_normalize_mcp_json_mcpservers_format() {
-        let sample_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("samples")
-            .join("mcp")
-            .join("mcpservers-format.json");
-        let input = std::fs::read_to_string(sample_path).unwrap();
-        
-        let result = normalize_mcp_json(&input, false).unwrap();
-        
-        assert_eq!(result.name, "lsp");
-        assert_eq!(result.command, Some("docker".to_string()));
-        assert_eq!(result.args, Some(vec!["run".to_string(), "-i".to_string(), "--rm".to_string(), "docker.io/jonrad/lsp-mcp:0.3.1".to_string()]));
-        assert_eq!(result.hint, "MCP server");
-    }
-
-    #[test]
-    fn test_normalize_mcp_json_invalid() {
-        let input = r#"{"multiple": {}, "keys": {}}"#;
-        
-        let result = normalize_mcp_json(input, false);
-        
-        assert!(result.is_err());
-    }
+pub fn check_command_available(command: &str) -> bool {
+    use duct::cmd;
+    cmd!("which", command).read().is_ok()
 }
