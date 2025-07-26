@@ -6,7 +6,7 @@ validate:
 
 # 📝 Preview next version and changelog
 changelog:
-    cog changelog --unreleased
+    cog changelog
 
 # 🚀 Release new version based on commit history
 release:

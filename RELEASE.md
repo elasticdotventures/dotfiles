@@ -16,6 +16,8 @@ just cog validate
 ```
 Ensures all commits follow conventional commit format.
 
+**Note**: This repository has 325+ non-compliant commits from before adopting conventional commits. Only new commits (post v1.2.0) need to follow the conventional format. The validation will show errors for historical commits, but this is expected.
+
 ### 2. Preview Changes
 ```bash
 just cog changelog
