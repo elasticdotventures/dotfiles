@@ -73,6 +73,11 @@ enum Commands {
     },
     #[clap(about = "Show agent identity and context information")]
     Whoami,
+    #[clap(about = "Query system information")]
+    Whatismy {
+        #[clap(subcommand)]
+        whatismy_command: WhatismyCommands,
+    },
     #[clap(about = "Show status dashboard of all available tools and services")]
     Status {
         #[clap(long, help = "Filter by subsystem: cli, mcp, ai, vscode, docker, apt, nix, bash")]
@@ -259,6 +264,15 @@ enum InitCommands {
     Aliases,
 }
 
+#[derive(Parser)]
+enum WhatismyCommands {
+    #[clap(about = "Detect current AI agent (claude, gemini, etc.)")]
+    Agent {
+        #[clap(long, help = "Ignore _B00T_Agent environment variable")]
+        no_env: bool,
+    },
+}
+
 // Using unified config from lib.rs
 type Config = UnifiedConfig;
 
@@ -353,6 +367,31 @@ fn whoami(path: &str) -> Result<()> {
     println!("{}", rendered);
 
     Ok(())
+}
+
+/// Detect current AI agent based on environment variables
+fn detect_agent(ignore_env: bool) -> String {
+    // Check if _B00T_Agent is already set and we're not ignoring env
+    if !ignore_env {
+        if let Ok(agent) = std::env::var("_B00T_Agent") {
+            if !agent.is_empty() {
+                return agent;
+            }
+        }
+    }
+    
+    // Check for Claude Code
+    if std::env::var("CLAUDECODE").unwrap_or_default() == "1" {
+        return "claude".to_string();
+    }
+    
+    // TODO: Add detection for other agents based on their shell environment:
+    // - gemini: specific environment vars set by gemini-cli shell
+    // - codex: specific environment vars set by codex shell
+    // - other agents: their respective shell environment indicators
+    
+    // Return empty string if no agent detected
+    "".to_string()
 }
 
 /// Generic function to load datum providers for a specific file extension
@@ -1039,6 +1078,12 @@ fn main() {
             if let Err(e) = whoami(&cli.path) {
                 eprintln!("Error displaying agent identity: {}", e);
                 std::process::exit(1);
+            }
+        },
+        Some(Commands::Whatismy { whatismy_command }) => match whatismy_command {
+            WhatismyCommands::Agent { no_env } => {
+                let agent = detect_agent(*no_env);
+                println!("{}", agent);
             }
         },
         Some(Commands::Status { filter, installed, available }) => {
