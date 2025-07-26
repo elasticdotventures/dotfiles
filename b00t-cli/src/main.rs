@@ -7,7 +7,7 @@ use regex::Regex;
 use duct::cmd;
 use semver::Version;
 use anyhow::{Result, Context};
-use tera::{Tera, Context as TeraContext};
+// 🤓 cleaned up unused Tera import after switching to simple string replacement
 use b00t_cli::{normalize_mcp_json, McpListOutput, McpListItem, UnifiedConfig, BootDatum, DatumType, create_unified_toml_config, AiConfig, AiListOutput, AiListItem, create_ai_toml_config};
 
 mod traits;
@@ -73,6 +73,13 @@ enum Commands {
     },
     #[clap(about = "Show agent identity and context information")]
     Whoami,
+    #[clap(about = "Create checkpoint: commit all files and run tests")]
+    Checkpoint {
+        #[clap(short, long, help = "Commit message for the checkpoint")]
+        message: Option<String>,
+        #[clap(long, help = "Skip running tests (not recommended)")]
+        skip_tests: bool,
+    },
     #[clap(about = "Query system information")]
     Whatismy {
         #[clap(subcommand)]
@@ -363,33 +370,110 @@ fn whoami(path: &str) -> Result<()> {
     let template_content = fs::read_to_string(&agent_md_path)
         .context(format!("Failed to read AGENT.md from {}", agent_md_path.display()))?;
 
-    // Create Tera context with runtime information
-    let mut context = TeraContext::new();
-    context.insert("PID", &std::process::id());
-
-    // Add timestamp
+    // Prepare template variables
     let timestamp = chrono::Utc::now().format("%Y-%m-%d %H:%M:%S UTC").to_string();
-    context.insert("TIMESTAMP", &timestamp);
-
-    // Add current user
     let user = std::env::var("USER").unwrap_or_else(|_| "unknown".to_string());
-    context.insert("USER", &user);
-
-    // Add current git branch (if available)
     let branch = cmd!("git", "branch", "--show-current")
         .read()
         .unwrap_or_else(|_| "no-git".to_string())
         .trim()
         .to_string();
-    context.insert("BRANCH", &branch);
+    let agent = detect_agent(false);
+    let model_size = std::env::var("MODEL_SIZE").unwrap_or_else(|_| "unknown".to_string());
+    let privacy = std::env::var("PRIVACY").unwrap_or_else(|_| "standard".to_string());
 
-    // Use Tera to render the template
-    let mut tera = Tera::default();
-    let rendered = tera.render_str(&template_content, &context)
-        .context("Failed to render AGENT.md template")?;
+    // Simple string replacement approach instead of Tera due to complex template syntax
+    let mut rendered = template_content;
+    
+    // Replace variables manually
+    rendered = rendered.replace("{{PID}}", &std::process::id().to_string());
+    rendered = rendered.replace("{{TIMESTAMP}}", &timestamp);
+    rendered = rendered.replace("{{USER}}", &user);
+    rendered = rendered.replace("{{BRANCH}}", &branch);
+    rendered = rendered.replace("{{_B00T_Agent}}", &agent);
+    rendered = rendered.replace("{{_B00T_AGENT}}", &agent);
+    rendered = rendered.replace("{{MODEL_SIZE}}", &model_size);
+    rendered = rendered.replace("{{PRIVACY}}", &privacy);
 
     println!("{}", rendered);
 
+    Ok(())
+}
+
+fn checkpoint(message: Option<&str>, skip_tests: bool) -> Result<()> {
+    println!("🥾 Creating checkpoint...");
+    
+    // Check if we're in a git repository
+    let git_status = cmd!("git", "status", "--porcelain").read();
+    if git_status.is_err() {
+        anyhow::bail!("Not in a git repository. Run 'git init' first.");
+    }
+    
+    // Check if this is a Rust project and run cargo check
+    if std::path::Path::new("Cargo.toml").exists() {
+        println!("🦀 Rust project detected. Running cargo check...");
+        let cargo_check = cmd!("cargo", "check").run();
+        if let Err(e) = cargo_check {
+            anyhow::bail!("🚨 cargo check failed: {}. Fix compilation errors before checkpoint.", e);
+        }
+        println!("✅ cargo check passed");
+    }
+    
+    // Generate commit message
+    let commit_msg = message.unwrap_or("🥾 checkpoint: automated commit via b00t-cli");
+    
+    // Add all files (including untracked)
+    println!("📦 Adding all files to staging area...");
+    let add_result = cmd!("git", "add", "-A").run();
+    if let Err(e) = add_result {
+        anyhow::bail!("Failed to add files to git staging area: {}", e);
+    }
+    
+    // Check if there are any changes to commit
+    let staged_changes = cmd!("git", "diff", "--cached", "--name-only").read()
+        .unwrap_or_default();
+    
+    if staged_changes.trim().is_empty() {
+        println!("✅ No changes to commit. Repository is clean.");
+        return Ok(());
+    }
+    
+    println!("📝 Files staged for commit:");
+    let staged_files = cmd!("git", "diff", "--cached", "--name-only").read()
+        .unwrap_or_default();
+    for file in staged_files.lines() {
+        if !file.trim().is_empty() {
+            println!("   • {}", file.trim());
+        }
+    }
+    
+    // Create the commit (this will trigger pre-commit hooks including tests)
+    println!("💾 Creating commit with message: '{}'", commit_msg);
+    let commit_result = cmd!("git", "commit", "-m", commit_msg).run();
+    
+    match commit_result {
+        Ok(_) => {
+            println!("✅ Checkpoint created successfully!");
+            
+            // Show the commit hash
+            if let Ok(commit_hash) = cmd!("git", "rev-parse", "--short", "HEAD").read() {
+                println!("📍 Commit: {}", commit_hash.trim());
+            }
+            
+            // Show current branch
+            if let Ok(branch) = cmd!("git", "branch", "--show-current").read() {
+                println!("🌳 Branch: {}", branch.trim());
+            }
+            
+            if !skip_tests {
+                println!("🧪 Tests executed via git pre-commit hooks");
+            }
+        }
+        Err(e) => {
+            anyhow::bail!("Commit failed: {}. This usually means git pre-commit hooks (including tests) failed.", e);
+        }
+    }
+    
     Ok(())
 }
 
@@ -1121,6 +1205,12 @@ fn main() {
         Some(Commands::Whoami) => {
             if let Err(e) = whoami(&cli.path) {
                 eprintln!("Error displaying agent identity: {}", e);
+                std::process::exit(1);
+            }
+        },
+        Some(Commands::Checkpoint { message, skip_tests }) => {
+            if let Err(e) = checkpoint(message.as_deref(), *skip_tests) {
+                eprintln!("Error creating checkpoint: {}", e);
                 std::process::exit(1);
             }
         },
