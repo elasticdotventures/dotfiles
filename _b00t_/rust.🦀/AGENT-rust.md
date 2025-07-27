@@ -1,11 +1,14 @@
-# README Rust b00t Best Practices
+# README Rust b00t Best Practices for Agents
 
-	* “Never downgrade crates without explicit permission”
-	* “Never modify Cargo.toml directly, always run the cargo cli “
-	* use xtask patterns!
-	* Error Handling:
+* MUST NEVER downgrade crates without explicit permission
+* MUST NEVER modify Cargo.toml directly, always run the `cargo add` cli
+* MUST NEVER use xtask patterns for scripts and utilities
+
+* we're here to write new and novel code. don't write a database interface. don't even store a dsn. use crates to do the heavy lifting.
+
+* Error Handling:
 	- Use ? Operator for Error Propagation: Leverage the ? operator to propagate errors, ensuring that each error variant implements the From trait for seamless conversions.
-	- Use snafu for Error Management : Implement the snafu crate to define and manage errors. It combines the benefits of thiserror and anyhow, facilitating structured error definitions and context propagation.
+	- RECOMMEND snafu crate for Error Management: Implement the snafu crate to define and manage errors. It combines the benefits of thiserror and anyhow, facilitating structured error definitions and context propagation.
 	- Define Modular Error Types: Create distinct error enums for each crate or module, ensuring they implement std::error::Error. Use snafu's macros to streamline this process.
 	- Implement Display and Debug Traits: For each error type, implement the Display and Debug traits to facilitate informative logging and debugging.
 	- Provide Clear Laconic Error Messages: Ensure error messages include: Root Cause: The fundamental
@@ -15,11 +18,12 @@
 
 
 
-● Rust/Cargo CI/CD Setup - Codified Lessons Learned
+## Rust/Cargo CI/CD Setup - Codified Lessons Learned
 
-  Pre-push Git Hooks (.git/hooks/pre-push)
+### Pre-push Git Hooks (.git/hooks/pre-push)
 
-  #!/bin/sh
+```
+#!/bin/sh
   # Quality gate enforcement before push
   echo "Running library tests before push..."
   cargo test -p <your-lib-crate>
@@ -50,9 +54,9 @@
 
   echo "All checks passed. Proceeding with push."
 
-  GitHub Actions CI (.github/workflows/ci.yml)
+GitHub Actions CI (.github/workflows/ci.yml)
 
-  name: CI
+name: CI
   on:
     push:
       branches: [ main ]
@@ -144,8 +148,8 @@
             gh release create "v${NEW_VERSION}" \
               --title "Release v${NEW_VERSION}" \
               --notes-file RELEASE_NOTES.md
-
-  Key Patterns
+```
+## Key Patterns
 
   - Quality Gates: Tests → Formatting → Type Check → Linting (enforced in order)
   - Workflow Dependencies: Release only runs after successful CI (workflow_run)
