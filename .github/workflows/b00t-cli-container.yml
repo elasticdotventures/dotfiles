@@ -10,7 +10,7 @@ on:
   pull_request:
     branches: [ main ]
     paths:
-      - 'b00t-cli/**'
+      - 'b00t-cli/**'  
       - 'Dockerfile.b00t-cli'
   release:
     types: [ published ]
