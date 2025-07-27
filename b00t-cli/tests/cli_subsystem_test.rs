@@ -1,5 +1,3 @@
-use b00t_cli::*;
-use std::env;
 use tempfile::TempDir;
 
 #[cfg(test)]
@@ -9,7 +7,7 @@ mod tests {
     #[test]
     fn test_cli_datum_creation() {
         let temp_dir = TempDir::new().unwrap();
-        let path = temp_dir.path().to_str().unwrap();
+        let _path = temp_dir.path().to_str().unwrap();
 
         // Create a test CLI config
         let config_content = r#"

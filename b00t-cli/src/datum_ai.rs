@@ -20,10 +20,32 @@ impl AiDatum {
         let content = std::fs::read_to_string(&path_buf)?;
         let config: AiConfig = toml::from_str(&content)?;
 
+        let mut datum = config.b00t;
+        // Merge top-level env into datum.env
+        if let Some(config_env) = config.env {
+            if let Some(ref mut datum_env) = datum.env {
+                datum_env.extend(config_env);
+            } else {
+                datum.env = Some(config_env);
+            }
+        }
+
         Ok(AiDatum {
-            datum: config.b00t,
+            datum,
             models: config.models,
         })
+    }
+
+    fn has_any_env_vars(&self) -> bool {
+        // Check if any required environment variables are actually set
+        if let Some(env) = &self.datum.env {
+            for (key, _) in env {
+                if std::env::var(key).is_ok() {
+                    return true;
+                }
+            }
+        }
+        false
     }
 }
 
@@ -77,7 +99,8 @@ impl StatusProvider for AiDatum {
     }
 
     fn is_disabled(&self) -> bool {
-        false // AI providers are never disabled by default
+        // AI providers are disabled when required environment variables are missing
+        !self.has_any_env_vars()
     }
 }
 

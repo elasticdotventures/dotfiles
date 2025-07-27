@@ -29,6 +29,7 @@ pub struct McpConfig {
 #[derive(Deserialize, Serialize, Debug, Clone, PartialEq)]
 pub struct UnifiedConfig {
     pub b00t: BootDatum,
+    pub env: Option<std::collections::HashMap<String, String>>,
 }
 
 #[derive(Deserialize, Serialize, Debug, Clone, PartialEq)]
@@ -420,6 +421,7 @@ pub fn create_ai_toml_config(ai_config: &AiConfig, path: &str) -> Result<()> {
 pub fn create_unified_toml_config(datum: &BootDatum, path: &str) -> Result<()> {
     let config = UnifiedConfig {
         b00t: datum.clone(),
+        env: None,
     };
 
     let toml_content = toml::to_string(&config).context("Failed to serialize config to TOML")?;
@@ -518,6 +520,30 @@ pub fn get_expanded_path(path: &str) -> Result<std::path::PathBuf> {
     Ok(std::path::PathBuf::from(
         shellexpand::tilde(path).to_string(),
     ))
+}
+
+pub fn get_ai_tools_status(path: &str) -> Result<Vec<Box<dyn StatusProvider>>> {
+    use crate::datum_ai::AiDatum;
+    let mut tools: Vec<Box<dyn StatusProvider>> = Vec::new();
+    let expanded_path = get_expanded_path(path)?;
+
+    if let Ok(entries) = std::fs::read_dir(&expanded_path) {
+        for entry in entries {
+            if let Ok(entry) = entry {
+                let entry_path = entry.path();
+                if let Some(file_name) = entry_path.file_name().and_then(|s| s.to_str()) {
+                    if file_name.ends_with(".ai.toml") {
+                        if let Some(tool_name) = file_name.strip_suffix(".ai.toml") {
+                            if let Ok(datum) = AiDatum::try_from((tool_name, path)) {
+                                tools.push(Box::new(datum));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    Ok(tools)
 }
 
 pub fn get_config(

@@ -11,7 +11,18 @@ pub struct DockerDatum {
 impl DockerDatum {
     pub fn from_config(name: &str, path: &str) -> Result<Self> {
         let (config, _filename) = get_config(name, path).map_err(|e| anyhow::anyhow!("{}", e))?;
-        Ok(DockerDatum { datum: config.b00t })
+        
+        let mut datum = config.b00t;
+        // Merge top-level env into datum.env
+        if let Some(config_env) = config.env {
+            if let Some(ref mut datum_env) = datum.env {
+                datum_env.extend(config_env);
+            } else {
+                datum.env = Some(config_env);
+            }
+        }
+        
+        Ok(DockerDatum { datum })
     }
 
     fn is_container_running(&self) -> bool {
@@ -64,19 +75,45 @@ impl DockerDatum {
         }
     }
 
-    fn get_oci_uri(&self) -> Option<String> {
+    pub fn get_oci_uri(&self) -> Option<String> {
         // Priority: explicit oci_uri > constructed from image
         if let Some(oci_uri) = &self.datum.oci_uri {
             Some(oci_uri.clone())
         } else if let Some(image) = &self.datum.image {
-            // Construct OCI URI from image name
+            // Construct OCI URI from image name for drift detection
             if image.contains('/') {
-                Some(format!("docker.io/{}", image))
+                // Registry/namespace/image:tag format
+                if image.starts_with("docker.io/") {
+                    Some(image.clone())
+                } else {
+                    Some(format!("docker.io/{}", image))
+                }
             } else {
+                // Official library images
                 Some(format!("docker.io/library/{}", image))
             }
         } else {
             None
+        }
+    }
+
+    pub fn check_image_drift(&self) -> bool {
+        // Check if local image differs from registry
+        if let Some(oci_uri) = self.get_oci_uri() {
+            // Basic drift detection - compare local vs remote digests
+            let local_digest = cmd!("docker", "images", "--digests", "--format", "{{.Digest}}", &oci_uri)
+                .read()
+                .unwrap_or_default();
+            
+            if local_digest.trim().is_empty() {
+                return true; // No local image = drifted
+            }
+            
+            // For now, assume no drift if image exists locally
+            // Future: compare with remote registry digest
+            false
+        } else {
+            true // No OCI URI = can't validate = assume drifted
         }
     }
 }

@@ -1,5 +1,3 @@
-use b00t_cli::*;
-use std::env;
 use tempfile::TempDir;
 
 #[cfg(test)]
@@ -10,7 +8,7 @@ mod tests {
     fn test_constraint_evaluation() {
         // Test NEEDS_ANY_ENV constraint
         let temp_dir = TempDir::new().unwrap();
-        let path = temp_dir.path().to_str().unwrap();
+        let _path = temp_dir.path().to_str().unwrap();
 
         // Create taskmaster-ai config with NEEDS_ANY_ENV constraint
         let config_content = r#"

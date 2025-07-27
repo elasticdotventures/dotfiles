@@ -143,19 +143,17 @@ ANTHROPIC_API_KEY = ""
         std::fs::write(temp_dir.path().join("openai.ai.toml"), openai_config).unwrap();
         std::fs::write(temp_dir.path().join("anthropic.ai.toml"), anthropic_config).unwrap();
 
-        // 🦨 REMOVED get_ai_tools_status - function not available
-        let tools: Vec<Box<dyn StatusProvider>> = Vec::new(); // placeholder
+        let tools = b00t_cli::get_ai_tools_status(path).unwrap();
 
         // Should collect all AI tools (even if disabled due to missing env vars)
         // The filtering happens at a higher level in the display logic
-        assert!(tools.len() >= 0); // May be filtered out due to missing env vars
+        assert!(tools.len() >= 2); // Should have openai and anthropic
 
         // Test with environment variable set
         unsafe {
             env::set_var("OPENAI_API_KEY", "test-key");
         }
-        // 🦨 REMOVED get_ai_tools_status - function not available  
-        let tools_with_env: Vec<Box<dyn StatusProvider>> = Vec::new(); // placeholder
+        let tools_with_env = b00t_cli::get_ai_tools_status(path).unwrap();
 
         // Should include at least the OpenAI provider now
         let openai_tools: Vec<_> = tools_with_env

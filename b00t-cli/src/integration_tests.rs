@@ -1,8 +1,6 @@
 #[cfg(test)]
 mod integration_tests {
     use crate::{get_mcp_config, mcp_add_json};
-    use std::fs;
-    use std::path::PathBuf;
     use tempfile::TempDir;
 
     fn setup_temp_dir() -> TempDir {
