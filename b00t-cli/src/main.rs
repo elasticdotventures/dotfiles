@@ -37,6 +37,7 @@ use datum_vscode::VscodeDatum;
 use traits::*;
 
 use crate::commands::{AiCommands, AppCommands, CliCommands, InitCommands, K8sCommands, McpCommands, SessionCommands, WhatismyCommands};
+use crate::commands::learn::handle_learn;
 
 // Re-export commonly used functions for datum modules
 pub use b00t_cli::{get_config, get_expanded_path, get_mcp_config, mcp_add_json, mcp_list, mcp_output};
@@ -119,6 +120,11 @@ enum Commands {
     Session {
         #[clap(subcommand)]
         session_command: SessionCommands,
+    },
+    #[clap(about = "Learn about topics with guided documentation")]
+    Learn {
+        #[clap(help = "Topic to learn about (e.g., rust, python, typescript, bash)")]
+        topic: Option<String>,
     },
 }
 
@@ -1062,6 +1068,12 @@ fn main() {
         }
         Some(Commands::Session { session_command }) => {
             if let Err(e) = session_command.execute(&cli.path) {
+                eprintln!("Error: {}", e);
+                std::process::exit(1);
+            }
+        }
+        Some(Commands::Learn { topic }) => {
+            if let Err(e) = handle_learn(&cli.path, topic.as_deref()) {
                 eprintln!("Error: {}", e);
                 std::process::exit(1);
             }
