@@ -39,7 +39,7 @@ use traits::*;
 use crate::commands::{AiCommands, AppCommands, CliCommands, InitCommands, K8sCommands, McpCommands, SessionCommands, WhatismyCommands};
 
 // Re-export commonly used functions for datum modules
-pub use b00t_cli::{get_config, get_expanded_path, get_mcp_config, mcp_add_json, mcp_list};
+pub use b00t_cli::{get_config, get_expanded_path, get_mcp_config, mcp_add_json, mcp_list, mcp_output};
 
 mod integration_tests;
 

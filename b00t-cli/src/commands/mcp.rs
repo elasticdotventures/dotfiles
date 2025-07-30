@@ -80,9 +80,9 @@ impl McpCommands {
                 println!("📦 MCP install functionality coming soon...");
                 Ok(())
             }
-            McpCommands::Output { .. } => {
-                println!("📤 MCP output functionality coming soon...");
-                Ok(())
+            McpCommands::Output { json, mcp_servers, servers } => {
+                let use_mcp_servers_wrapper = !json && (*mcp_servers || !servers.contains(','));
+                crate::mcp_output(_path, use_mcp_servers_wrapper, servers)
             }
         }
     }

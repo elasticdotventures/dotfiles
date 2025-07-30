@@ -739,6 +739,95 @@ pub fn mcp_add_json(json: &str, dwiw: bool, path: &str) -> Result<()> {
     Ok(())
 }
 
+pub fn mcp_output(path: &str, use_mcp_servers_wrapper: bool, servers: &str) -> Result<()> {
+    use anyhow::Context;
+    
+    let requested_servers: Vec<&str> = servers.split(',').map(|s| s.trim()).collect();
+    let mut server_configs = serde_json::Map::new();
+
+    for server_name in requested_servers {
+        if server_name.is_empty() {
+            continue;
+        }
+
+        match get_mcp_config(server_name, path) {
+            Ok(datum) => {
+                let mut server_config = serde_json::Map::new();
+                server_config.insert(
+                    "command".to_string(),
+                    serde_json::Value::String(datum.command.unwrap_or_else(|| "npx".to_string())),
+                );
+                server_config.insert(
+                    "args".to_string(),
+                    serde_json::Value::Array(
+                        datum
+                            .args
+                            .unwrap_or_default()
+                            .into_iter()
+                            .map(serde_json::Value::String)
+                            .collect(),
+                    ),
+                );
+
+                server_configs.insert(
+                    server_name.to_string(),
+                    serde_json::Value::Object(server_config),
+                );
+            }
+            Err(_) => {
+                // Create a cute poopy log error indicator instead of stderr warning
+                let mut error_config = serde_json::Map::new();
+                error_config.insert(
+                    "command".to_string(),
+                    serde_json::Value::String("b00t:💩🪵".to_string()),
+                );
+
+                let utc_timestamp = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap()
+                    .as_secs();
+                let utc_time = chrono::DateTime::from_timestamp(utc_timestamp as i64, 0)
+                    .unwrap()
+                    .format("%Y-%m-%dT%H:%M:%SZ")
+                    .to_string();
+
+                error_config.insert(
+                    "args".to_string(),
+                    serde_json::Value::Array(vec![
+                        serde_json::Value::String(utc_time),
+                        serde_json::Value::String(format!(
+                            "server '{}' not found in _b00t_ directory",
+                            server_name
+                        )),
+                    ]),
+                );
+
+                server_configs.insert(
+                    server_name.to_string(),
+                    serde_json::Value::Object(error_config),
+                );
+            }
+        }
+    }
+
+    let output = if use_mcp_servers_wrapper {
+        let mut wrapper = serde_json::Map::new();
+        wrapper.insert(
+            "mcpServers".to_string(),
+            serde_json::Value::Object(server_configs),
+        );
+        serde_json::Value::Object(wrapper)
+    } else {
+        serde_json::Value::Object(server_configs)
+    };
+
+    let json_str =
+        serde_json::to_string_pretty(&output).context("Failed to serialize MCP servers to JSON")?;
+    println!("{}", json_str);
+
+    Ok(())
+}
+
 // Session management functions
 impl SessionState {
     pub fn new(agent_name: Option<String>) -> Self {
