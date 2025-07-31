@@ -2,6 +2,29 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## 0.1.0 - 2025-07-31
+#### Bug Fixes
+- b00t-mcp has no commands - (8f79209) - elasticdotventures
+- include b00t-mcp workspace member in Docker build - (481f2dd) - elasticdotventures
+- resolve CLI config file path resolution bug (closes #53) - (587fdef) - elasticdotventures
+- bad merge - (099aa1d) - elasticdotventures
+#### Features
+- implement generic command dispatcher for b00t-mcp with full b00t-cli coverage - (d50e3dc) - elasticdotventures
+- cli type, hello_world - (765bd07) - elasticdotventures
+- implement comprehensive b00t init hello-world protocol - (1d13ba1) - elasticdotventures
+- add comprehensive tests for session memory and fix failing unit tests - (0ebb7b6) - elasticdotventures
+- add session memory with get/set/incr/decr operations and README tracking - (392cffd) - elasticdotventures
+- implement kubernetes mcp deployment and cli commands (#48) - (74b76f4) - Brian Horakh
+- create cargo workspace for centralized rust project management (#47) - (a72b488) - Brian Horakh
+- uplift docker and k8s datum types with resource management (#43) - (e5fef61) - Brian Horakh
+- add docker usage documentation (#42) - (b56f8d6) - Brian Horakh
+#### Miscellaneous Chores
+- testing b00t-mcp - (99ad8af) - elasticdotventures
+#### Refactoring
+- modularize b00t-cli main.rs into composable command modules (#50) - (38a4128) - Brian Horakh
+
+- - -
+
 ## 0.0.1 - 2025-07-26
 #### Bug Fixes
 - Add uv to PATH in Dockerfile - (fa73bcd) - elasticdotventures
