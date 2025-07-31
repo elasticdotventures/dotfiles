@@ -10,8 +10,10 @@ pub mod datum_docker;
 pub mod datum_k8s;
 pub mod datum_vscode;
 pub mod k8s;
+pub mod session_memory;
 pub mod traits;
 pub mod utils;
+pub mod whoami;
 pub use traits::*;
 
 #[derive(Deserialize, Serialize, Debug, Clone, PartialEq)]
