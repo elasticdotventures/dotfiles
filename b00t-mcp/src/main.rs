@@ -46,11 +46,11 @@ async fn main() -> Result<()> {
 
     if matches.get_flag("stdio") {
         // Run as MCP server
-        eprintln!(
-            "Starting b00t-mcp MCP server in directory: {} with config: {}",
-            working_path.display(),
-            config_path
-        );
+        // eprintln!(
+        //     "Starting b00t-mcp MCP server in directory: {} with config: {}",
+        //     working_path.display(),
+        //     config_path
+        // );
 
         let server = B00tMcpServer::new(working_path, config_path)?;
 
