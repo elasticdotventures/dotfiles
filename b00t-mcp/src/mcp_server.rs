@@ -14,6 +14,7 @@ use std::path::Path;
 use std::process::Command;
 
 use crate::acl::AclFilter;
+use crate::command_dispatcher::{ToolRegistry, GenericParams};
 
 // Parameter structs for tools
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -48,6 +49,7 @@ pub struct B00tMcpServer {
     working_dir: std::path::PathBuf,
     acl_filter: AclFilter,
     tool_router: ToolRouter<Self>,
+    tool_registry: ToolRegistry,
 }
 
 impl B00tMcpServer {
@@ -55,10 +57,16 @@ impl B00tMcpServer {
         let acl_filter = AclFilter::load_from_file(config_path)
             .context("Failed to load ACL configuration")?;
 
+        let tool_registry = ToolRegistry::new(
+            working_dir.as_ref().to_path_buf(),
+            acl_filter.clone()
+        );
+
         Ok(Self {
             working_dir: working_dir.as_ref().to_path_buf(),
             acl_filter,
             tool_router: Self::tool_router(),
+            tool_registry,
         })
     }
 
@@ -232,6 +240,87 @@ impl B00tMcpServer {
                 Ok(CallToolResult::error(vec![Content::text(content)]))
             }
         }
+    }
+
+    // Delegate to ToolRegistry for all b00t-cli commands
+    #[tool(description = "Detect currently installed version of a CLI tool")]
+    async fn b00t_cli_detect(
+        &self,
+        params: Parameters<GenericParams>,
+    ) -> Result<CallToolResult, rmcp::model::ErrorData> {
+        self.tool_registry.b00t_cli_detect(params).await
+    }
+
+    #[tool(description = "Show desired version of a CLI tool from configuration")]
+    async fn b00t_cli_desires(
+        &self,
+        params: Parameters<GenericParams>,
+    ) -> Result<CallToolResult, rmcp::model::ErrorData> {
+        self.tool_registry.b00t_cli_desires(params).await
+    }
+
+    #[tool(description = "Install a CLI tool")]
+    async fn b00t_cli_install(
+        &self,
+        params: Parameters<GenericParams>,
+    ) -> Result<CallToolResult, rmcp::model::ErrorData> {
+        self.tool_registry.b00t_cli_install(params).await
+    }
+
+    #[tool(description = "Update a CLI tool")]
+    async fn b00t_cli_update(
+        &self,
+        params: Parameters<GenericParams>,
+    ) -> Result<CallToolResult, rmcp::model::ErrorData> {
+        self.tool_registry.b00t_cli_update(params).await
+    }
+
+    #[tool(description = "Update all outdated CLI tools")]
+    async fn b00t_cli_up(
+        &self,
+        params: Parameters<GenericParams>,
+    ) -> Result<CallToolResult, rmcp::model::ErrorData> {
+        self.tool_registry.b00t_cli_up(params).await
+    }
+
+    #[tool(description = "Add MCP server configuration")]
+    async fn b00t_mcp_add_new(
+        &self,
+        params: Parameters<GenericParams>,
+    ) -> Result<CallToolResult, rmcp::model::ErrorData> {
+        self.tool_registry.b00t_mcp_add(params).await
+    }
+
+    #[tool(description = "List MCP server configurations")]
+    async fn b00t_mcp_list_new(
+        &self,
+        params: Parameters<GenericParams>,
+    ) -> Result<CallToolResult, rmcp::model::ErrorData> {
+        self.tool_registry.b00t_mcp_list(params).await
+    }
+
+    #[tool(description = "Initialize hello world protocol - wake up all systems")]
+    async fn b00t_init_hello_world(
+        &self,
+        params: Parameters<GenericParams>,
+    ) -> Result<CallToolResult, rmcp::model::ErrorData> {
+        self.tool_registry.b00t_init_hello_world(params).await
+    }
+
+    #[tool(description = "Create checkpoint: commit all files and run tests")]
+    async fn b00t_checkpoint(
+        &self,
+        params: Parameters<GenericParams>,
+    ) -> Result<CallToolResult, rmcp::model::ErrorData> {
+        self.tool_registry.b00t_checkpoint(params).await
+    }
+
+    #[tool(description = "Show agent identity and context information")]
+    async fn b00t_whoami(
+        &self,
+        params: Parameters<GenericParams>,
+    ) -> Result<CallToolResult, rmcp::model::ErrorData> {
+        self.tool_registry.b00t_whoami(params).await
     }
 }
 

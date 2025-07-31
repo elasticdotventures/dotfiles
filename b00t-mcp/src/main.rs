@@ -5,6 +5,8 @@ use std::path::Path;
 
 mod mcp_server;
 mod acl;
+mod command_dispatcher;
+mod clap_to_mcp;
 
 use mcp_server::B00tMcpServer;
 
