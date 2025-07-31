@@ -1,3 +1,6 @@
+./\.\_b00t\_\.toml
+
+
 # tmp
 tmp/
 
@@ -163,6 +166,7 @@ lib-cov
 coverage
 *.lcov
 
+
 # nyc test coverage
 .nyc_output
 
@@ -290,3 +294,5 @@ context_portal/*
 .cursor/*
 .taskmaster/*
 */.env*
+._b00t_.toml
+._b00t_.toml
