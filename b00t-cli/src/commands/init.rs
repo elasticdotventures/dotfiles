@@ -5,7 +5,7 @@ use std::process::{Command, Stdio};
 use std::path::Path;
 use crate::session_memory::SessionMemory;
 use crate::whoami;
-use crate::{get_mcp_toml_files, get_mcp_config, load_datum_providers};
+use crate::load_datum_providers;
 use crate::traits::*;
 
 #[derive(Parser)]

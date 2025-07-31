@@ -8,9 +8,8 @@ use std::fs;
 // use std::path::PathBuf;
 // 🤓 cleaned up unused Tera import after switching to simple string replacement
 use b00t_cli::{
-    AiConfig, AiListItem, AiListOutput, BootDatum, McpListItem, McpListOutput,
-    SessionState, UnifiedConfig, create_ai_toml_config, create_unified_toml_config,
-    normalize_mcp_json,
+    AiConfig, BootDatum,
+    SessionState, UnifiedConfig,
 };
 
 mod commands;
@@ -26,7 +25,7 @@ mod session_memory;
 mod traits;
 mod utils;
 mod whoami;
-use utils::{is_git_repo, get_workspace_root};
+use utils::get_workspace_root;
 
 // 🦨 REMOVED unused K8sDatum import - not used in main.rs
 use datum_ai::AiDatum;

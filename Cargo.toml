@@ -22,7 +22,7 @@ regex = "1.10.5"
 anyhow = "1.0"
 chrono = { version = "0.4", features = ["serde"] }
 tokio = { version = "1.34.0", features = ["full"] }
-rmcp = { version = "0.3.0", features = ["client", "transport-io"] }
+rmcp = { version = "0.3.2", features = ["client", "transport-io", "server", "macros", "schemars"] }
 
 [workspace.lints.rust]
 unused_must_use = "warn"
