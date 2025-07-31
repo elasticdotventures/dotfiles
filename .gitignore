@@ -292,3 +292,4 @@ context_portal/*
 .taskmaster/*
 */.env*
 ._b00t_.toml
+*.ignore
