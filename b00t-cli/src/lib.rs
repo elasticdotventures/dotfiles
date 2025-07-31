@@ -96,6 +96,7 @@ pub enum DatumType {
     Apt,
     Nix,
     Ai,
+    Cli,
 }
 
 #[derive(Serialize, Debug)]
@@ -440,6 +441,7 @@ pub fn create_unified_toml_config(datum: &BootDatum, path: &str) -> Result<()> {
         DatumType::Apt => ".apt.toml",
         DatumType::Nix => ".nix.toml",
         DatumType::Ai => ".ai.toml",
+        DatumType::Cli => ".cli.toml",
         DatumType::Unknown => ".toml",
     };
 
@@ -470,6 +472,7 @@ impl std::fmt::Display for DatumType {
             DatumType::Apt => write!(f, "apt"),
             DatumType::Nix => write!(f, "nix"),
             DatumType::Ai => write!(f, "AI"),
+            DatumType::Cli => write!(f, "CLI"),
         }
     }
 }

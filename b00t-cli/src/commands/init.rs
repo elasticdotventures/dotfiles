@@ -2,9 +2,11 @@ use anyhow::Result;
 use clap::Parser;
 use duct::cmd;
 use std::process::{Command, Stdio};
+use std::path::Path;
 use crate::session_memory::SessionMemory;
 use crate::whoami;
-use crate::{get_mcp_toml_files, get_mcp_config};
+use crate::{get_mcp_toml_files, get_mcp_config, load_datum_providers};
+use crate::traits::*;
 
 #[derive(Parser)]
 pub enum InitCommands {
@@ -28,56 +30,40 @@ pub enum InitCommands {
 }
 
 /// Execute the comprehensive b00t hello_world protocol
-fn execute_hello_world_protocol(path: &str, skip_redis: bool, skip_diagnostics: bool, skip_tour: bool) -> Result<()> {
-    println!("👋 Initializing b00t hello_world protocol...\n");
+fn execute_hello_world_protocol(path: &str, skip_redis: bool, _skip_diagnostics: bool, skip_tour: bool) -> Result<()> {
+    println!("👋 b00t hello_world protocol - enlightening agent capabilities...\n");
     
     // Initialize session memory and agent identity
     let mut memory = SessionMemory::load()?;
-    let agent = whoami::detect_agent(false);
     
-    if !agent.is_empty() {
-        memory.set("detected_agent", &agent)?;
-        println!("🤖 Agent detected: {}", agent);
-    } else {
-        println!("🤖 No specific agent detected, running in generic mode");
-    }
+    // Phase 1: Agent Identity & Role Detection
+    println!("🤖 Phase 1: Agent Identity Detection");
+    detect_agent_role(&mut memory)?;
 
-    // Phase 1: Redis Server Startup and Verification
+    // Phase 2: Project Context Detection  
+    println!("\n📂 Phase 2: Project Context Analysis");  
+    detect_project_context(&mut memory)?;
+
+    // Phase 3: Datum-based Tool Discovery
+    println!("\n🔧 Phase 3: Tool & Service Discovery");
+    discover_available_tools(path, &mut memory)?;
+
+    // Phase 4: Redis & Infrastructure (if needed)
     if !skip_redis {
-        println!("\n🔧 Phase 1: Redis Server Management");
-        verify_and_start_redis(&mut memory)?;
-    } else {
-        println!("\n⏭️  Skipping Redis server startup");
+        println!("\n💾 Phase 4: Infrastructure Setup");
+        setup_infrastructure(&mut memory)?;
     }
 
-    // Phase 2: MCP Server Introspection
-    println!("\n🔌 Phase 2: MCP Server Configuration");
-    introspect_mcp_servers(path, &mut memory)?;
-
-    // Phase 3: System Diagnostics
-    if !skip_diagnostics {
-        println!("\n⚕️  Phase 3: System Diagnostics");
-        run_system_diagnostics(&mut memory)?;
-    } else {
-        println!("\n⏭️  Skipping system diagnostics");
-    }
-
-    // Phase 4: System Preferences Configuration
-    println!("\n⚙️  Phase 4: System Preferences");
-    configure_system_preferences(&mut memory)?;
-
-    // Phase 5: Interactive Documentation Tour
+    // Phase 5: Agent Enlightenment - What can you do?
     if !skip_tour {
-        println!("\n📚 Phase 5: Interactive Documentation Tour");
-        interactive_documentation_tour(path, &mut memory)?;
-    } else {
-        println!("\n⏭️  Skipping interactive tour");
+        println!("\n🧠 Phase 5: Agent Capability Mapping");
+        enlighten_agent_capabilities(path, &mut memory)?;
     }
 
     // Final status report
     memory.incr("hello_world_completions")?;
-    println!("\n✅ b00t hello_world protocol completed successfully!");
-    println!("📊 Session summary: {}", memory.get_summary());
+    println!("\n✅ Agent enlightenment complete!");
+    println!("📊 {}", memory.get_summary());
     
     Ok(())
 }
@@ -189,74 +175,166 @@ fn try_start_redis_server() -> Result<bool> {
     Ok(false)
 }
 
-/// Simple MCP server info for hello_world protocol
-#[derive(Debug)]
-struct McpServerInfo {
-    name: String,
-    command: String,
-    hint: String,
-}
-
-/// Get MCP server configurations for introspection
-fn get_mcp_servers_info(path: &str) -> Result<Vec<McpServerInfo>> {
-    let mcp_files = get_mcp_toml_files(path)?;
-    let mut servers = Vec::new();
+/// Detect agent role and capabilities
+fn detect_agent_role(memory: &mut SessionMemory) -> Result<()> {
+    let agent = whoami::detect_agent(false);
     
-    for server_name in mcp_files {
-        if let Ok(datum) = get_mcp_config(&server_name, path) {
-            servers.push(McpServerInfo {
-                name: server_name,  // server_name is already String
-                command: datum.command.unwrap_or_else(|| "unknown".to_string()),
-                hint: datum.hint,
-            });
-        }
-    }
-    
-    Ok(servers)
-}
-
-/// Introspect MCP server configurations and report status
-fn introspect_mcp_servers(path: &str, memory: &mut SessionMemory) -> Result<()> {
-    println!("  🔍 Scanning MCP server configurations...");
-    
-    let mcp_servers = get_mcp_servers_info(path)?;
-    
-    if mcp_servers.is_empty() {
-        println!("  ℹ️  No MCP servers configured");
-        memory.set_num("mcp_server_count", 0)?;
-        return Ok(());
-    }
-    
-    println!("  📋 Found {} MCP server(s):", mcp_servers.len());
-    memory.set_num("mcp_server_count", mcp_servers.len() as i64)?;
-    
-    for server in &mcp_servers {
-        println!("    • {} - {}", server.name, server.hint);
+    if !agent.is_empty() {
+        memory.set("detected_agent", &agent)?;
+        println!("  🎯 Agent: {}", agent);
         
-        // Test if the command is available
-        let command_available = Command::new("which")
-            .arg(&server.command)
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .status()
-            .map(|status| status.success())
-            .unwrap_or(false);
-            
-        if command_available {
-            println!("      ✅ Command '{}' is available", server.command);
+        // Map agent to role/capabilities
+        let role = match agent.as_str() {
+            "claude" => "AI Assistant (Development, Analysis, Documentation)",
+            _ => "Generic Agent (Multi-purpose)"
+        };
+        memory.set("agent_role", role)?;
+        println!("  🏷️  Role: {}", role);
+    } else {
+        println!("  🤖 Generic agent mode");
+        memory.set("agent_role", "Generic Agent")?;
+    }
+    
+    Ok(())
+}
+
+/// Detect project context by analyzing current directory
+fn detect_project_context(memory: &mut SessionMemory) -> Result<()> {
+    let mut project_types = Vec::new();
+    let mut primary_stack = "unknown";
+    
+    // Check for common project indicators
+    if Path::new("Cargo.toml").exists() {
+        project_types.push("rust");
+        primary_stack = "rust";
+        println!("  🦀 Rust project detected (Cargo.toml)");
+    }
+    
+    if Path::new("package.json").exists() {
+        project_types.push("nodejs");
+        if primary_stack == "unknown" { primary_stack = "nodejs"; }
+        println!("  🦄 Node.js project detected (package.json)");
+    }
+    
+    if Path::new("pyproject.toml").exists() || Path::new("requirements.txt").exists() {
+        project_types.push("python");
+        if primary_stack == "unknown" { primary_stack = "python"; }
+        println!("  🐍 Python project detected");
+    }
+    
+    if Path::new("Dockerfile").exists() || Path::new("docker-compose.yml").exists() {
+        project_types.push("docker");
+        println!("  🐳 Docker configuration detected");
+    }
+    
+    if Path::new(".git").exists() {
+        project_types.push("git");
+        println!("  📂 Git repository detected");
+    }
+    
+    // Store project context
+    memory.set("primary_stack", primary_stack)?;
+    memory.set("project_types", &project_types.join(","))?;
+    
+    if project_types.is_empty() {
+        println!("  ❓ No specific project type detected");
+    }
+    
+    Ok(())
+}
+
+/// Discover available tools using datum system
+fn discover_available_tools(path: &str, memory: &mut SessionMemory) -> Result<()> {
+    // Load all datums from different subsystems
+    let cli_tools = load_datum_providers::<crate::datum_cli::CliDatum>(path, ".cli.toml")
+        .unwrap_or_default();
+    let mcp_servers = load_datum_providers::<crate::datum_mcp::McpDatum>(path, ".mcp.toml")
+        .unwrap_or_default();
+    let docker_containers = load_datum_providers::<crate::datum_docker::DockerDatum>(path, ".docker.toml")
+        .unwrap_or_default();
+    
+    // Count available vs installed
+    let mut available_count = 0;
+    let mut installed_count = 0;
+    let mut missing_important = Vec::new();
+    
+    // Check CLI tools
+    for tool in &cli_tools {
+        available_count += 1;
+        if DatumChecker::is_installed(tool.as_ref()) {
+            installed_count += 1;
         } else {
-            println!("      ❌ Command '{}' not found", server.command);
-            memory.incr("mcp_missing_commands")?;
+            // Check if this is an important tool for the current project
+            let tool_name = StatusProvider::name(tool.as_ref());
+            let unknown = "unknown".to_string();
+            let project_stack = memory.get("primary_stack").unwrap_or(&unknown);
+            
+            if is_tool_important_for_stack(tool_name, project_stack) {
+                missing_important.push(tool_name.to_string());
+            }
         }
     }
     
-    // Show sample b00t syntax for MCP usage
-    println!("  💡 b00t MCP syntax examples:");
-    if let Some(first_server) = mcp_servers.first() {
-        println!("    b00t app claude-code mcp install {}", first_server.name);
-        println!("    b00t app vscode mcp install {}", first_server.name);
+    println!("  🔧 {} CLI tools available, {} installed", available_count, installed_count);
+    println!("  🔌 {} MCP servers configured", mcp_servers.len());
+    println!("  🐳 {} Docker containers available", docker_containers.len());
+    
+    // Report missing important tools
+    if !missing_important.is_empty() {
+        println!("  ⚠️  Missing important tools for {} stack: {}", 
+                memory.get("primary_stack").unwrap_or(&"project".to_string()),
+                missing_important.join(", "));
+        memory.set("missing_important_tools", &missing_important.join(","))?;
     }
     
+    memory.set_num("tools_available", available_count as i64)?;
+    memory.set_num("tools_installed", installed_count as i64)?;
+    memory.set_num("mcp_servers_available", mcp_servers.len() as i64)?;
+    
+    Ok(())
+}
+
+/// Check if a tool is important for a given technology stack
+fn is_tool_important_for_stack(tool_name: &str, stack: &str) -> bool {
+    match stack {
+        "rust" => matches!(tool_name, "rustc" | "cargo" | "git"),
+        "nodejs" => matches!(tool_name, "node" | "npm" | "git"),
+        "python" => matches!(tool_name, "python3" | "pip" | "git"),
+        _ => matches!(tool_name, "git")
+    }
+}
+
+/// Setup infrastructure (renamed from configure_system_preferences)
+fn setup_infrastructure(memory: &mut SessionMemory) -> Result<()> {
+    verify_and_start_redis(memory)?;
+    
+    // Detect container runtime
+    let container_runtime = if cmd!("podman", "--version").read().is_ok() {
+        "podman"
+    } else if cmd!("docker", "--version").read().is_ok() {
+        "docker"  
+    } else {
+        "none"
+    };
+    memory.set("preferred_container_runtime", container_runtime)?;
+    
+    memory.set("last_hello_world", &chrono::Utc::now().to_rfc3339())?;
+    Ok(())
+}
+
+/// Agent enlightenment (renamed from interactive_documentation_tour) 
+fn enlighten_agent_capabilities(_path: &str, memory: &mut SessionMemory) -> Result<()> {
+    let unknown = "unknown".to_string();
+    let empty = "".to_string();
+    let project_stack = memory.get("primary_stack").unwrap_or(&unknown);
+    let missing_tools = memory.get("missing_important_tools").unwrap_or(&empty);
+    
+    if !missing_tools.is_empty() {
+        println!("  💡 Install for {}: b00t cli install {}", project_stack, missing_tools.replace(",", " "));
+    }
+    
+    println!("  🎓 Key commands: b00t status, b00t mcp list, b00t cli up");
+    memory.set_flag("enlightenment_completed", true)?;
     Ok(())
 }
 
