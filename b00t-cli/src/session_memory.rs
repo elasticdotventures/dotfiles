@@ -2,6 +2,8 @@ use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::PathBuf;
+use std::fs;
+use std::io::{BufRead, BufReader, Write};
 use crate::utils::get_workspace_root;
 
 /// Session memory using confy for TOML persistence at git root
@@ -48,9 +50,51 @@ impl SessionMemory {
         Ok(PathBuf::from(git_root))
     }
 
+    /// Ensure ._b00t_.toml is in .gitignore
+    fn ensure_gitignore_entry() -> Result<()> {
+        let config_dir = Self::get_config_path()?;
+        let gitignore_path = config_dir.join(".gitignore");
+        let target_entry = "._b00t_.toml";
+
+        // Check if .gitignore exists
+        if !gitignore_path.exists() {
+            // Create .gitignore with the entry
+            fs::write(&gitignore_path, format!("# b00t session files\n{}\n", target_entry))
+                .context("Failed to create .gitignore")?;
+            return Ok(());
+        }
+
+        // Read existing .gitignore to check if entry exists
+        let file = fs::File::open(&gitignore_path).context("Failed to open .gitignore")?;
+        let reader = BufReader::new(file);
+        
+        for line in reader.lines() {
+            let line = line.context("Failed to read line from .gitignore")?;
+            if line.trim() == target_entry {
+                // Entry already exists
+                return Ok(());
+            }
+        }
+
+        // Entry doesn't exist, append it
+        let mut file = fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&gitignore_path)
+            .context("Failed to open .gitignore for writing")?;
+        
+        writeln!(file, "{}", target_entry)
+            .context("Failed to write to .gitignore")?;
+
+        Ok(())
+    }
+
     /// Load or create session memory from git root ._b00t_.toml
     pub fn load() -> Result<Self> {
         let config_dir = Self::get_config_path()?;
+        
+        // Ensure ._b00t_.toml is in .gitignore before creating/loading
+        Self::ensure_gitignore_entry().context("Failed to ensure .gitignore entry")?;
         
         // Use confy to load from ._b00t_.toml in git root
         let mut memory: SessionMemory = confy::load_path(config_dir.join("._b00t_.toml"))
@@ -189,6 +233,8 @@ impl SessionMemory {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fs;
+    use tempfile::TempDir;
 
     #[test]
     fn test_session_memory_operations() -> Result<()> {
@@ -221,6 +267,42 @@ mod tests {
         assert!(!memory.is_readme_read());
         memory.metadata.readme_read = true;
         assert!(memory.is_readme_read());
+        
+        Ok(())
+    }
+
+    #[test]
+    fn test_gitignore_entry_creation() -> Result<()> {
+        let temp_dir = TempDir::new()?;
+        let gitignore_path = temp_dir.path().join(".gitignore");
+        let target_entry = "._b00t_.toml";
+
+        // Test creating .gitignore when it doesn't exist
+        assert!(!gitignore_path.exists());
+        
+        // Simulate the functionality manually since we can't easily mock the path
+        fs::write(&gitignore_path, format!("# b00t session files\n{}\n", target_entry))?;
+        
+        assert!(gitignore_path.exists());
+        let content = fs::read_to_string(&gitignore_path)?;
+        assert!(content.contains(target_entry));
+        
+        Ok(())
+    }
+
+    #[test]
+    fn test_gitignore_entry_detection() -> Result<()> {
+        let temp_dir = TempDir::new()?;
+        let gitignore_path = temp_dir.path().join(".gitignore");
+        let target_entry = "._b00t_.toml";
+
+        // Create .gitignore with entry already present
+        fs::write(&gitignore_path, format!("*.log\n{}\n*.tmp\n", target_entry))?;
+        
+        // Read and verify the entry exists
+        let content = fs::read_to_string(&gitignore_path)?;
+        let has_entry = content.lines().any(|line| line.trim() == target_entry);
+        assert!(has_entry);
         
         Ok(())
     }

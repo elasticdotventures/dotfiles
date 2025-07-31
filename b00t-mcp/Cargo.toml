@@ -30,7 +30,7 @@ tokio.workspace = true
 rmcp.workspace = true
 
 # b00t-mcp specific dependencies
-b00t-cli = { version = "0.6.0", path = "../b00t-cli" }
+b00t-cli = { workspace = true }
 shellexpand = "3.1.0"
 dirs = "6.0"
 schemars = "1.0"

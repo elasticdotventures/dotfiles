@@ -14,7 +14,7 @@ fn test_hello_world_with_skip_all_flags() {
             "hello-world",
             "--help"
         ])
-        .current_dir("/home/brianh/.dotfiles/b00t-cli")
+        .current_dir("/home/brianh/.dotfiles")
         .output()
         .expect("Failed to execute command");
 
@@ -43,7 +43,7 @@ fn test_hello_world_mcp_introspection() {
             "mcp",
             "list"
         ])
-        .current_dir("/home/brianh/.dotfiles/b00t-cli")
+        .current_dir("/home/brianh/.dotfiles")
         .output()
         .expect("Failed to execute MCP list command");
 
@@ -71,7 +71,7 @@ fn test_hello_world_session_memory_tracking() {
             "session",
             "keys"
         ])
-        .current_dir("/home/brianh/.dotfiles/b00t-cli")
+        .current_dir("/home/brianh/.dotfiles")
         .output()
         .expect("Failed to execute session keys command");
 
@@ -108,7 +108,7 @@ fn test_hello_world_system_preferences() {
             "--skip-diagnostics",
             "--skip-tour"
         ])
-        .current_dir("/home/brianh/.dotfiles/b00t-cli")
+        .current_dir("/home/brianh/.dotfiles")
         .output()
         .expect("Failed to execute command");
 
@@ -150,7 +150,7 @@ fn test_hello_world_agent_detection() {
             "--skip-diagnostics", 
             "--skip-tour"
         ])
-        .current_dir("/home/brianh/.dotfiles/b00t-cli")
+        .current_dir("/home/brianh/.dotfiles")
         .output()
         .expect("Failed to execute command");
 
@@ -179,7 +179,7 @@ fn test_hello_world_help_output() {
             "hello-world",
             "--help"
         ])
-        .current_dir("/home/brianh/.dotfiles/b00t-cli")
+        .current_dir("/home/brianh/.dotfiles")
         .output()
         .expect("Failed to execute command");
 

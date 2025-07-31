@@ -1,6 +1,3 @@
-./\.\_b00t\_\.toml
-
-
 # tmp
 tmp/
 
@@ -294,5 +291,4 @@ context_portal/*
 .cursor/*
 .taskmaster/*
 */.env*
-._b00t_.toml
 ._b00t_.toml
