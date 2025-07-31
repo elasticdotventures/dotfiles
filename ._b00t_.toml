@@ -1,14 +1,17 @@
 [strings]
-counter = "42"
+test_key = "test_value"
 
 [numbers]
+counter = 6
+new_counter = 2
+another_counter = -1
 checkpoint_count = 1
-build_count = 1
 
 [flags]
+enabled = true
 
 [metadata]
-session_id = "bc326c6e-b38e-4b85-bdbd-8ad741b2555f"
-created_at = "2025-07-31T09:29:39.777816037Z"
-updated_at = "2025-07-31T09:36:11.210247392Z"
+session_id = "cbc24eab-a5cd-4deb-94df-7d17b50a8180"
+created_at = "2025-07-31T09:46:21.276900426Z"
+updated_at = "2025-07-31T09:47:51.559059548Z"
 readme_read = true

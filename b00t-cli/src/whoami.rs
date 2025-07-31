@@ -89,22 +89,26 @@ mod tests {
 
     #[test]
     fn test_detect_agent_claude() {
-        std::env::set_var("CLAUDECODE", "1");
+        // Clear existing env vars first
+        unsafe { std::env::remove_var("_B00T_Agent"); }
+        unsafe { std::env::set_var("CLAUDECODE", "1"); }
         assert_eq!(detect_agent(false), "claude");
-        std::env::remove_var("CLAUDECODE");
+        unsafe { std::env::remove_var("CLAUDECODE"); }
     }
 
     #[test]
     fn test_detect_agent_env_variable() {
-        std::env::set_var("_B00T_Agent", "test-agent");
+        unsafe { std::env::remove_var("CLAUDECODE"); }
+        unsafe { std::env::set_var("_B00T_Agent", "test-agent"); }
         assert_eq!(detect_agent(false), "test-agent");
-        std::env::remove_var("_B00T_Agent");
+        unsafe { std::env::remove_var("_B00T_Agent"); }
     }
 
     #[test]
     fn test_detect_agent_ignore_env() {
-        std::env::set_var("_B00T_Agent", "test-agent");
+        unsafe { std::env::remove_var("CLAUDECODE"); }
+        unsafe { std::env::set_var("_B00T_Agent", "test-agent"); }
         assert_eq!(detect_agent(true), "");
-        std::env::remove_var("_B00T_Agent");
+        unsafe { std::env::remove_var("_B00T_Agent"); }
     }
 }
