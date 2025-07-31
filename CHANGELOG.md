@@ -2,6 +2,12 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## 0.1.1 - 2025-07-31
+#### Bug Fixes
+- added stdio (non --stdio) option - (86e4a15) - elasticdotventures
+
+- - -
+
 ## 0.1.0 - 2025-07-31
 #### Bug Fixes
 - b00t-mcp has no commands - (8f79209) - elasticdotventures
