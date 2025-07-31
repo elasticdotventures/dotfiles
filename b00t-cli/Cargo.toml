@@ -19,7 +19,7 @@ toml.workspace = true
 clap = { workspace = true }
 regex = { workspace = true }
 anyhow = { workspace = true }
-chrono = { workspace = true }
+chrono.workspace = true
 
 # b00t-cli specific dependencies
 duct = "1.0"
