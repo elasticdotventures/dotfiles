@@ -18,6 +18,7 @@ path = "src/lib.rs"
 name = "b00t-mcp"
 path = "src/main.rs"
 
+
 [dependencies]
 # Workspace dependencies
 clap.workspace = true
@@ -29,6 +30,7 @@ anyhow.workspace = true
 chrono.workspace = true
 tokio.workspace = true
 rmcp.workspace = true
+tracing.workspace = true
 
 # b00t-mcp specific dependencies
 b00t-cli = { workspace = true }

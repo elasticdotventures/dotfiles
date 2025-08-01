@@ -221,6 +221,7 @@ dependencies = [
  "tempfile",
  "tokio",
  "toml 0.9.4",
+ "tracing",
 ]
 
 [[package]]

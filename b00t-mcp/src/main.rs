@@ -3,11 +3,7 @@ use clap::{Arg, Command};
 use rmcp::{ServiceExt, transport::io::stdio};
 use std::path::Path;
 
-mod mcp_server;
-mod acl;
-mod params;
-
-use mcp_server::B00tMcpServer;
+use b00t_mcp::B00tMcpServerRusty;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -59,9 +55,8 @@ async fn main() -> Result<()> {
         //     config_path
         // );
 
-        let server = B00tMcpServer::new(working_path, config_path)?;
-
-        // Start the MCP server with stdio transport
+        // No stderr output in stdio mode as it breaks the MCP protocol
+        let server = B00tMcpServerRusty::new(working_path, config_path)?;
         let running_service = server.serve(stdio()).await?;
 
         // Keep the server running
@@ -97,15 +92,10 @@ async fn main() -> Result<()> {
             env!("CARGO_PKG_NAME")
         );
         println!();
-        println!("MCP Tools Available:");
-        println!("  b00t_detect      - Run b00t detect command");
-        println!("  b00t_desires     - Run b00t desires command");
-        println!("  b00t_install     - Run b00t install command");
-        println!("  b00t_update      - Run b00t update command");
-        println!("  b00t_up          - Run b00t up command");
-        println!("  b00t_mcp         - Run b00t mcp commands");
-        println!("  b00t_learn       - Run b00t learn command");
-        println!("  b00t_whatismy    - Run b00t whatismy commands");
+        println!("🦀 Rusty MCP Tools:");
+        println!("  Tools are compile-time generated from b00t-cli CLAP structures");
+        println!("  Type-safe execution with zero runtime parsing failures");
+        println!("  Examples: b00t_mcp_list, b00t_cli_detect, b00t_whoami");
         println!();
         println!("Example usage with MCP client:");
         println!("  Configure in .mcp.json or MCP client settings");
