@@ -23,6 +23,4 @@ wip = { changelog_title = "🚧 Work in Progress", omit_from_changelog = true }
 
 [changelog]
 path = "CHANGELOG.md"
-template = "remote"
-owner = "elasticdotventures"
-repository = "dotfiles"
+template = "default"
