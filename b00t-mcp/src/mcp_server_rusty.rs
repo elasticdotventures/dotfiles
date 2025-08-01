@@ -35,9 +35,41 @@ impl B00tMcpServerRusty {
             registry: create_mcp_registry(),
         })
     }
+    
+    /// Get the number of available tools
+    pub fn tool_count(&self) -> usize {
+        self.registry.get_tools().len()
+    }
 }
 
 impl ServerHandler for B00tMcpServerRusty {
+    async fn ping(
+        &self,
+        _context: RequestContext<RoleServer>,
+    ) -> Result<(), McpError> {
+        debug!("🏓 Ping received - Rusty MCP server is alive and well");
+        
+        // Log server health info for debugging
+        let tools_count = self.registry.get_tools().len();
+        debug!("🦀 Server status: {} compile-time tools available", tools_count);
+        debug!("📁 Working directory: {}", self.working_dir.display());
+        
+        // Verify b00t-cli is available
+        let b00t_cli_available = std::process::Command::new("b00t-cli")
+            .arg("--help")
+            .output()
+            .map(|output| output.status.success())
+            .unwrap_or(false);
+        
+        debug!("🥾 b00t-cli availability: {}", if b00t_cli_available { "✅" } else { "❌" });
+        
+        if !b00t_cli_available {
+            info!("⚠️  b00t-cli not available - MCP tools may fail to execute properly");
+        }
+        
+        Ok(())
+    }
+
     fn get_info(&self) -> ServerInfo {
         ServerInfo {
             protocol_version: ProtocolVersion::V_2024_11_05,
@@ -222,6 +254,16 @@ mod tests {
         assert!(tool_names.contains(&"b00t_mcp_list"));
         assert!(tool_names.contains(&"b00t_whoami"));
         assert!(tool_names.contains(&"b00t_status"));
+    }
+    
+    #[tokio::test]
+    async fn test_ping() {
+        let temp_dir = TempDir::new().unwrap();
+        let server = B00tMcpServerRusty::new(temp_dir.path(), "").unwrap();
+        
+        // Test that ping returns Ok(())
+        let result = server.ping(RequestContext::default()).await;
+        assert!(result.is_ok());
     }
     
     #[test]

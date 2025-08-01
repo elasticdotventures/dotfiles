@@ -257,9 +257,9 @@ mod tests {
     
     #[test] 
     fn test_registry() {
-        let registry = McpCommandRegistry::builder()
-            .register::<TestCommand>()
-            .build();
+        let mut builder = McpCommandRegistry::builder();
+        builder.register::<TestCommand>();
+        let registry = builder.build();
         
         let tools = registry.get_tools();
         assert_eq!(tools.len(), 1);

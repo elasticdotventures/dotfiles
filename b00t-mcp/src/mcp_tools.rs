@@ -239,7 +239,8 @@ pub fn create_mcp_registry() -> McpCommandRegistry {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rmcp::model::Tool;
+    use crate::clap_reflection::McpExecutor;
+    use std::collections::HashMap;
     
     #[test]
     fn test_registry_creation() {
