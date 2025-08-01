@@ -3,8 +3,11 @@ use rmcp::{
     handler::server::{ServerHandler, tool::Parameters},
     model::{
         CallToolResult, Content, Implementation, ProtocolVersion,
-        ServerCapabilities, ServerInfo,
+        ServerCapabilities, ServerInfo, Tool, ListToolsResult,
+        CallToolRequestParam, PaginatedRequestParam,
     },
+    service::{RequestContext, RoleServer},
+    model::ErrorData as McpError,
     tool,
 };
 use std::path::Path;
@@ -41,6 +44,8 @@ impl B00tMcpServer {
         }
 
         // Execute b00t-cli
+        // 🤓 b00t-cli is the correct binary; b00t is a shell alias for users & agents; 
+        // but when b00t is calling itself b00t-cli is best.
         let mut cmd = Command::new("b00t-cli");
         cmd.current_dir(&self.working_dir);
 
@@ -393,5 +398,143 @@ impl ServerHandler for B00tMcpServer {
                 .enable_tools()
                 .build(),
         }
+    }
+
+    async fn list_tools(
+        &self,
+        _request: Option<PaginatedRequestParam>,
+        _context: RequestContext<RoleServer>,
+    ) -> Result<ListToolsResult, McpError> {
+        Ok(ListToolsResult {
+            tools: vec![
+                Tool {
+                    name: "b00t_detect".into(),
+                    description: Some("Run b00t detect command".into()),
+                    input_schema: std::sync::Arc::new(serde_json::json!({
+                        "type": "object",
+                        "properties": {
+                            "tool": {
+                                "type": "string",
+                                "description": "Name of the tool to detect"
+                            },
+                            "verbose": {
+                                "type": "boolean", 
+                                "description": "Enable verbose output",
+                                "default": false
+                            }
+                        },
+                        "required": ["tool"]
+                    }).as_object().unwrap().clone()),
+                    annotations: None,
+                },
+                Tool {
+                    name: "b00t_desires".into(),
+                    description: Some("Show desired version of a CLI tool from configuration".into()),
+                    input_schema: std::sync::Arc::new(serde_json::json!({
+                        "type": "object",
+                        "properties": {
+                            "tool": {
+                                "type": "string",
+                                "description": "Name of the tool to check desires for"
+                            },
+                            "verbose": {
+                                "type": "boolean",
+                                "description": "Enable verbose output", 
+                                "default": false
+                            }
+                        },
+                        "required": ["tool"]
+                    }).as_object().unwrap().clone()),
+                    annotations: None,
+                },
+                Tool {
+                    name: "b00t_install".into(),
+                    description: Some("Install a CLI tool".into()),
+                    input_schema: std::sync::Arc::new(serde_json::json!({
+                        "type": "object",
+                        "properties": {
+                            "tool": {
+                                "type": "string",
+                                "description": "Name of the tool to install"
+                            },
+                            "version": {
+                                "type": "string",
+                                "description": "Specific version to install (optional)"
+                            },
+                            "force": {
+                                "type": "boolean",
+                                "description": "Force installation",
+                                "default": false
+                            },
+                            "verbose": {
+                                "type": "boolean",
+                                "description": "Enable verbose output",
+                                "default": false
+                            }
+                        },
+                        "required": ["tool"]
+                    }).as_object().unwrap().clone()),
+                    annotations: None,
+                }
+            ],
+            next_cursor: None,
+        })
+    }
+
+    async fn call_tool(
+        &self,
+        request: CallToolRequestParam,
+        _context: RequestContext<RoleServer>,
+    ) -> Result<CallToolResult, McpError> {
+        match request.name.as_ref() {
+            "b00t_detect" => {
+                let params: DetectParams = serde_json::from_value(serde_json::Value::Object(request.arguments.unwrap_or_default()))
+                    .map_err(|e| McpError::invalid_params(e.to_string(), None))?;
+                let mut args = vec!["detect", &params.tool];
+                if params.verbose {
+                    args.push("--verbose");
+                }
+                match self.execute_b00t_command(&args) {
+                    Ok(output) => Ok(self.success_result(output)),
+                    Err(e) => Ok(self.error_result(e.to_string())),
+                }
+            }
+            "b00t_desires" => {
+                let params: DesiresParams = serde_json::from_value(serde_json::Value::Object(request.arguments.unwrap_or_default()))
+                    .map_err(|e| McpError::invalid_params(e.to_string(), None))?;
+                let mut args = vec!["desires", &params.tool];
+                if params.verbose {
+                    args.push("--verbose");
+                }
+                match self.execute_b00t_command(&args) {
+                    Ok(output) => Ok(self.success_result(output)),
+                    Err(e) => Ok(self.error_result(e.to_string())),
+                }
+            }
+            "b00t_install" => {
+                let params: InstallParams = serde_json::from_value(serde_json::Value::Object(request.arguments.unwrap_or_default()))
+                    .map_err(|e| McpError::invalid_params(e.to_string(), None))?;
+                let mut args = vec!["install", &params.tool];
+                if let Some(version) = params.version.as_ref() {
+                    args.extend(vec!["--version", version]);
+                }
+                if params.force {
+                    args.push("--force");
+                }
+                if params.verbose {
+                    args.push("--verbose");
+                }
+                match self.execute_b00t_command(&args) {
+                    Ok(output) => Ok(self.success_result(output)),
+                    Err(e) => Ok(self.error_result(e.to_string())),
+                }
+            }
+            _ => Err(McpError::method_not_found::<rmcp::model::CallToolRequestMethod>()),
+        }
+    }
+
+    async fn on_initialized(&self, _context: rmcp::service::NotificationContext<rmcp::service::RoleServer>) {
+        // 🤓 Handle the initialized notification - this is called after successful handshake
+        eprintln!("b00t-mcp server initialized successfully");
     }
 }
