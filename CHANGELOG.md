@@ -2,6 +2,17 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## 0.1.2 - 2025-08-01
+#### 🐛 Bug fixes
+- **(cog)** use default template to avoid remote configuration issues - (3c9d305) - elasticdotventures
+- **(cog)** use owner and repository fields for remote template - (0f20690) - elasticdotventures
+- **(cog)** add remote repository URL for changelog generation - (9133ecb) - elasticdotventures
+#### 🚀 Features
+- allow wip: conventional commit - (49d1ca6) - elasticdotventures
+- auto add ._b00t_.toml to .ignore before creating file - (f99f88d) - elasticdotventures
+
+- - -
+
 ## 0.1.1 - 2025-07-31
 #### Bug Fixes
 - added stdio (non --stdio) option - (86e4a15) - elasticdotventures
