@@ -2,6 +2,7 @@
 name = "b00t-cli"
 version.workspace = true
 edition.workspace = true
+build = "../build.rs"
 authors.workspace = true
 license.workspace = true
 repository.workspace = true

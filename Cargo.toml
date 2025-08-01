@@ -6,15 +6,18 @@ members = [
 resolver = "2"
 
 [workspace.package]
-version = "0.6.0"
+# 🤓 Placeholder version - actual version comes from cocogitto git tags via build.rs
+# This ensures git tags remain the single source of authority for versioning
+version = "0.0.0-git"
 edition = "2024"
+build = "build.rs"
 authors = ["Brian Horakh <brian@promptexecution.com>"]
 license = "MIT"
 repository = "https://github.com/elasticdotventures/dotfiles"
 
 [workspace.dependencies]
 # Workspace members
-b00t-cli = { version = "0.6.0", path = "b00t-cli" }
+b00t-cli = { path = "b00t-cli" }
 
 # Common dependencies that could be shared across workspace members
 serde = { version = "1.0", features = ["derive"] }
