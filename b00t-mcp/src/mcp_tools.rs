@@ -102,6 +102,8 @@ pub struct WhoamiCommand;
 impl_mcp_tool!(WhoamiCommand, "b00t_whoami", ["whoami"]);
 
 /// Status command
+// 🤓 ENTANGLED: b00t-cli/src/main.rs Commands::Status
+// When this changes, update b00t-cli Status command structure
 #[derive(Parser, Clone)]
 pub struct StatusCommand {
     #[arg(long, help = "Filter by subsystem")]
@@ -159,6 +161,8 @@ pub struct AppClaudecodeMcpInstallCommand {
 impl_mcp_tool!(AppClaudecodeMcpInstallCommand, "b00t_app_claudecode_mcp_install", ["app", "claudecode", "mcp", "install"]);
 
 /// Session init command
+// 🤓 ENTANGLED: b00t-cli/src/commands/session.rs SessionCommands::Init
+// When this changes, update b00t-cli SessionCommands::Init structure
 #[derive(Parser, Clone)]
 pub struct SessionInitCommand {
     #[arg(long, help = "Budget limit in dollars")]
@@ -186,6 +190,8 @@ pub struct SessionEndCommand;
 impl_mcp_tool!(SessionEndCommand, "b00t_session_end", ["session", "end"]);
 
 /// Learn command
+// 🤓 ENTANGLED: b00t-cli/src/main.rs Commands::Learn
+// When this changes, update b00t-cli Learn command structure
 #[derive(Parser, Clone)]
 pub struct LearnCommand {
     #[arg(help = "Topic to learn about")]
@@ -195,6 +201,8 @@ pub struct LearnCommand {
 impl_mcp_tool!(LearnCommand, "b00t_learn", ["learn"]);
 
 /// Checkpoint command
+// 🤓 ENTANGLED: b00t-cli/src/main.rs Commands::Checkpoint
+// When this changes, update b00t-cli Checkpoint command structure
 #[derive(Parser, Clone)]
 pub struct CheckpointCommand {
     #[arg(short, long, help = "Commit message")]

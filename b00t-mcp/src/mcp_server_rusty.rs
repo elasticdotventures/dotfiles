@@ -72,7 +72,7 @@ impl ServerHandler for B00tMcpServerRusty {
 
     fn get_info(&self) -> ServerInfo {
         ServerInfo {
-            protocol_version: ProtocolVersion::V_2024_11_05,
+            protocol_version: ProtocolVersion::default(), // Uses LATEST (2025-03-26)
             server_info: Implementation::from_build_env(),
             instructions: Some(
                 "🦀 Rusty MCP server for b00t-cli with compile-time generated tools. \
