@@ -4,8 +4,31 @@ use anyhow::Result;
 use serde::{Deserialize, Serialize};
 
 // MCP-specific multi-method structures
+
+/// Stdio-based MCP server method configuration (MCP nomenclature)
+/// 
+/// Defines how to execute an MCP server via stdio transport (command line interface).
+/// Multiple stdio methods can be specified with different priorities.
+/// 
+/// # Examples
+/// 
+/// ```toml
+/// [[b00t.stdio]]
+/// command = "npx"
+/// args = ["-y", "@modelcontextprotocol/server-filesystem"]
+/// priority = 0
+/// requires = ["node"]
+/// transport = "stdio"
+/// 
+/// [[b00t.stdio]]
+/// command = "uvx"  
+/// args = ["mcp-server-filesystem"]
+/// priority = 1
+/// requires = ["python"]
+/// transport = "stdio"
+/// ```
 #[derive(Deserialize, Serialize, Debug, Clone, PartialEq)]
-pub struct McpCliMethod {
+pub struct McpStdioMethod {
     pub command: String,
     pub args: Vec<String>,
     #[serde(default)]
@@ -14,10 +37,27 @@ pub struct McpCliMethod {
     pub requires: Vec<String>,
     #[serde(default)]
     pub env: std::collections::HashMap<String, String>,
+    #[serde(default = "default_stdio_transport")]
+    pub transport: String,
 }
 
+/// HTTP stream-based MCP server method configuration (MCP nomenclature)
+/// 
+/// Defines how to connect to an MCP server via HTTP stream transport.
+/// 
+/// # Examples
+/// 
+/// ```toml
+/// [b00t.httpstream]
+/// url = "https://mcp-server.example.com"
+/// priority = 0
+/// requires = ["internet"]
+/// requires_internet = true
+/// requires_auth = false
+/// transport = "httpstream"
+/// ```
 #[derive(Deserialize, Serialize, Debug, Clone, PartialEq)]
-pub struct McpHttpMethod {
+pub struct McpHttpStreamMethod {
     pub url: String,
     #[serde(default)]
     pub priority: u8,
@@ -27,12 +67,40 @@ pub struct McpHttpMethod {
     pub requires_internet: bool,
     #[serde(default)]
     pub requires_auth: bool,
+    #[serde(default = "default_httpstream_transport")]
+    pub transport: String,
 }
 
 fn default_true() -> bool {
     true
 }
 
+fn default_stdio_transport() -> String {
+    "stdio".to_string()
+}
+
+fn default_httpstream_transport() -> String {
+    "httpstream".to_string()
+}
+
+/// Multi-method MCP server configuration datum
+/// 
+/// Manages MCP server configurations with support for multiple deployment methods.
+/// Automatically selects the best available method based on priority and system requirements.
+/// 
+/// # Examples
+/// 
+/// ```rust
+/// use b00t_cli::datum_mcp::McpDatum;
+/// 
+/// // Load MCP server configuration
+/// let mcp = McpDatum::from_config("filesystem", "~/.dotfiles/_b00t_").unwrap();
+/// 
+/// // Select best available method
+/// if let Some(method) = mcp.select_best_method() {
+///     println!("Selected method: {:?}", method);
+/// }
+/// ```
 pub struct McpDatum {
     pub datum: BootDatum,
 }
@@ -43,25 +111,33 @@ impl McpDatum {
         Ok(McpDatum { datum: config.b00t })
     }
 
-    // Helper to parse CLI methods from raw data
-    fn parse_cli_methods(&self) -> Vec<McpCliMethod> {
-        if let Some(cli_data) = &self.datum.mcp_cli {
-            cli_data.iter()
-                .filter_map(|raw| serde_json::from_value(serde_json::Value::Object(
-                    raw.iter().map(|(k, v)| (k.clone(), v.clone())).collect()
-                )).ok())
-                .collect()
+    // Helper to parse stdio methods from raw data
+    fn parse_stdio_methods(&self) -> Vec<McpStdioMethod> {
+        if let Some(mcp) = &self.datum.mcp {
+            if let Some(stdio_data) = &mcp.stdio {
+                stdio_data.iter()
+                    .filter_map(|raw| serde_json::from_value(serde_json::Value::Object(
+                        raw.iter().map(|(k, v)| (k.clone(), v.clone())).collect()
+                    )).ok())
+                    .collect()
+            } else {
+                Vec::new()
+            }
         } else {
             Vec::new()
         }
     }
 
-    // Helper to parse HTTP method from raw data  
-    fn parse_http_method(&self) -> Option<McpHttpMethod> {
-        if let Some(http_data) = &self.datum.mcp_http {
-            serde_json::from_value(serde_json::Value::Object(
-                http_data.iter().map(|(k, v)| (k.clone(), v.clone())).collect()
-            )).ok()
+    // Helper to parse HTTP stream method from raw data  
+    fn parse_httpstream_method(&self) -> Option<McpHttpStreamMethod> {
+        if let Some(mcp) = &self.datum.mcp {
+            if let Some(httpstream_data) = &mcp.httpstream {
+                serde_json::from_value(serde_json::Value::Object(
+                    httpstream_data.iter().map(|(k, v)| (k.clone(), v.clone())).collect()
+                )).ok()
+            } else {
+                None
+            }
         } else {
             None
         }
@@ -71,35 +147,23 @@ impl McpDatum {
     pub fn select_best_method(&self) -> Option<McpSelectedMethod> {
         let mut candidates = Vec::new();
 
-        // Add HTTP method if available
-        if let Some(http) = self.parse_http_method() {
-            if self.check_http_requirements(&http) {
-                candidates.push(McpSelectedMethod::Http(http));
+        // Add HTTP stream method if available
+        if let Some(httpstream) = self.parse_httpstream_method() {
+            if self.check_httpstream_requirements(&httpstream) {
+                candidates.push(McpSelectedMethod::HttpStream(httpstream));
             }
         }
 
-        // Add CLI methods if available
-        let cli_methods = self.parse_cli_methods();
-        for cli in cli_methods {
-            if self.check_cli_requirements(&cli) {
-                candidates.push(McpSelectedMethod::Cli(cli));
+        // Add stdio methods if available
+        let stdio_methods = self.parse_stdio_methods();
+        for stdio in stdio_methods {
+            if self.check_stdio_requirements(&stdio) {
+                candidates.push(McpSelectedMethod::Stdio(stdio));
             }
         }
 
-        // Fall back to legacy command/args if no multi-methods available
+        // Return None if no multi-methods available (legacy format no longer supported)
         if candidates.is_empty() {
-            if let Some(command) = &self.datum.command {
-                if check_command_available(command) {
-                    let legacy_cli = McpCliMethod {
-                        command: command.clone(),
-                        args: self.datum.args.clone().unwrap_or_default(),
-                        priority: 255, // Lowest priority
-                        requires: self.datum.require.clone().unwrap_or_default(),
-                        env: self.datum.env.clone().unwrap_or_default(),
-                    };
-                    return Some(McpSelectedMethod::Cli(legacy_cli));
-                }
-            }
             return None;
         }
 
@@ -108,25 +172,25 @@ impl McpDatum {
         candidates.into_iter().next()
     }
 
-    fn check_http_requirements(&self, http: &McpHttpMethod) -> bool {
+    fn check_httpstream_requirements(&self, httpstream: &McpHttpStreamMethod) -> bool {
         // Check if internet is required and available
-        if http.requires_internet {
+        if httpstream.requires_internet {
             // TODO: Add actual internet connectivity check
             // For now, assume internet is available
         }
         
         // Check other requirements
-        self.evaluate_method_constraints(&http.requires)
+        self.evaluate_method_constraints(&httpstream.requires)
     }
 
-    fn check_cli_requirements(&self, cli: &McpCliMethod) -> bool {
+    fn check_stdio_requirements(&self, stdio: &McpStdioMethod) -> bool {
         // Check if command is available
-        if !check_command_available(&cli.command) {
+        if !check_command_available(&stdio.command) {
             return false;
         }
         
         // Check method-specific constraints
-        self.evaluate_method_constraints(&cli.requires)
+        self.evaluate_method_constraints(&stdio.requires)
     }
 
     fn evaluate_method_constraints(&self, requires: &[String]) -> bool {
@@ -151,40 +215,40 @@ impl McpDatum {
 
 #[derive(Debug, Clone)]
 pub enum McpSelectedMethod {
-    Http(McpHttpMethod),
-    Cli(McpCliMethod),
+    HttpStream(McpHttpStreamMethod),
+    Stdio(McpStdioMethod),
 }
 
 impl McpSelectedMethod {
     pub fn priority(&self) -> u8 {
         match self {
-            McpSelectedMethod::Http(http) => http.priority,
-            McpSelectedMethod::Cli(cli) => cli.priority,
+            McpSelectedMethod::HttpStream(httpstream) => httpstream.priority,
+            McpSelectedMethod::Stdio(stdio) => stdio.priority,
         }
     }
 
     pub fn command(&self) -> Option<&str> {
         match self {
-            McpSelectedMethod::Http(_) => None,
-            McpSelectedMethod::Cli(cli) => Some(&cli.command),
+            McpSelectedMethod::HttpStream(_) => None,
+            McpSelectedMethod::Stdio(stdio) => Some(&stdio.command),
         }
     }
 
     pub fn args(&self) -> Option<&[String]> {
         match self {
-            McpSelectedMethod::Http(_) => None,
-            McpSelectedMethod::Cli(cli) => Some(&cli.args),
+            McpSelectedMethod::HttpStream(_) => None,
+            McpSelectedMethod::Stdio(stdio) => Some(&stdio.args),
         }
     }
 
-    pub fn is_http(&self) -> bool {
-        matches!(self, McpSelectedMethod::Http(_))
+    pub fn is_httpstream(&self) -> bool {
+        matches!(self, McpSelectedMethod::HttpStream(_))
     }
 
     pub fn url(&self) -> Option<&str> {
         match self {
-            McpSelectedMethod::Http(http) => Some(&http.url),
-            McpSelectedMethod::Cli(_) => None,
+            McpSelectedMethod::HttpStream(httpstream) => Some(&httpstream.url),
+            McpSelectedMethod::Stdio(_) => None,
         }
     }
 }
@@ -208,8 +272,8 @@ impl DatumChecker for McpDatum {
         // Return the selected method info if available
         if let Some(method) = self.select_best_method() {
             match method {
-                McpSelectedMethod::Http(http) => Some(format!("HTTP: {}", http.url)),
-                McpSelectedMethod::Cli(cli) => Some(format!("{} available", cli.command)),
+                McpSelectedMethod::HttpStream(httpstream) => Some(format!("HTTP Stream: {}", httpstream.url)),
+                McpSelectedMethod::Stdio(stdio) => Some(format!("{} available", stdio.command)),
             }
         } else {
             None

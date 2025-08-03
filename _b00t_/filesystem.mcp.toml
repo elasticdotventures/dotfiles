@@ -1,9 +1,14 @@
 [b00t]
 name = "filesystem"
 type = "mcp"
+hint = "File system access MCP server"
+
+[[b00t.stdio]]
 command = "npx"
 args = ["-y", "@modelcontextprotocol/server-filesystem"]
-hint = "File system access MCP server"
+transport = "stdio"
+priority = 0
+requires = ["node"]
 
 [b00t.env]
 FILESYSTEM_ROOT = "/tmp"
