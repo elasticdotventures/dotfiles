@@ -1,0 +1,10 @@
+[b00t]
+name = "legacy-test"
+type = "mcp"
+hint = "Legacy single-method MCP server (backwards compatibility test)"
+command = "npx"
+args = ["-y", "@modelcontextprotocol/server-filesystem"]
+require = ["NEEDS_ANY_ENV"]
+
+[b00t.env]
+FILESYSTEM_ACCESS = "true"

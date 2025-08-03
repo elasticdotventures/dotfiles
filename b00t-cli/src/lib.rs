@@ -82,6 +82,13 @@ pub struct BootDatum {
 
     // Aliases for CLI commands
     pub aliases: Option<Vec<String>>,
+
+    // MCP-specific multi-method support - these will be handled by datum_mcp module
+    // Using raw values to avoid circular dependencies
+    #[serde(rename = "cli", skip_serializing_if = "Option::is_none")]
+    pub mcp_cli: Option<Vec<std::collections::HashMap<String, serde_json::Value>>>,
+    #[serde(rename = "http", skip_serializing_if = "Option::is_none")]
+    pub mcp_http: Option<std::collections::HashMap<String, serde_json::Value>>,
 }
 
 #[derive(Deserialize, Serialize, Debug, Clone, PartialEq)]
@@ -254,6 +261,8 @@ pub fn normalize_mcp_json(input: &str, dwiw: bool) -> Result<BootDatum> {
                         .collect()
                 }),
             aliases: None,
+            mcp_cli: None,
+            mcp_http: None,
         };
         return Ok(server);
     }
@@ -326,6 +335,8 @@ pub fn normalize_mcp_json(input: &str, dwiw: bool) -> Result<BootDatum> {
                             .collect()
                     }),
                 aliases: None,
+                mcp_cli: None,
+                mcp_http: None,
             };
             return Ok(server);
         }
@@ -398,6 +409,8 @@ pub fn normalize_mcp_json(input: &str, dwiw: bool) -> Result<BootDatum> {
                         .collect()
                 }),
             aliases: None,
+            mcp_cli: None,
+            mcp_http: None,
         };
         return Ok(server);
     }
