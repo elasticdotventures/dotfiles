@@ -1,8 +1,8 @@
 [package]
 name = "b00t-cli"
+# 🤓 Version inherited from b00t-c0re-lib - the single source of truth
 version.workspace = true
 edition.workspace = true
-build = "../build.rs"
 authors.workspace = true
 license.workspace = true
 repository.workspace = true
