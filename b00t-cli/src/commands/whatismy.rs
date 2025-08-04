@@ -1,5 +1,7 @@
 use anyhow::Result;
 use clap::Parser;
+use std::collections::HashMap;
+use serde::{Deserialize, Serialize};
 
 #[derive(Parser)]
 pub enum WhatismyCommands {
@@ -31,6 +33,13 @@ pub enum WhatismyCommands {
         name: String,
         #[clap(help = "Output format: toml, yaml, json, or tera")]
         format: String,
+    },
+    #[clap(about = "Show current agent role and blessed tools")]
+    Role {
+        #[clap(long, help = "Output in JSON format")]
+        json: bool,
+        #[clap(long, help = "Show available tools for role")]
+        show_tools: bool,
     },
 }
 
@@ -173,6 +182,35 @@ impl WhatismyCommands {
                 }
                 Ok(())
             }
+            WhatismyCommands::Role { json, show_tools } => {
+                use crate::session_memory::SessionMemory;
+                let memory = SessionMemory::load()?;
+                
+                // Detect current role based on agent patterns
+                let agent = detect_agent(&memory, false);
+                let role = detect_role_from_agent(&agent);
+                
+                if *json {
+                    let role_data = if *show_tools {
+                        get_role_with_tools(&role)?
+                    } else {
+                        serde_json::json!({
+                            "role": role,
+                            "agent": agent,
+                            "session_id": memory.metadata.session_id
+                        })
+                    };
+                    println!("{}", serde_json::to_string_pretty(&role_data)?);
+                } else {
+                    println!("🎭 Role: {}", role);
+                    println!("🤖 Agent: {}", agent);
+                    
+                    if *show_tools {
+                        show_blessed_tools(&role)?;
+                    }
+                }
+                Ok(())
+            }
         }
     }
 }
@@ -251,6 +289,94 @@ fn get_parent_command() -> Option<String> {
         }
     }
     None
+}
+
+/// Agent blessing configuration
+#[derive(Debug, Deserialize, Serialize)]
+struct AgentBlessing {
+    description: String,
+    tools: Vec<String>,
+    required_for_role: bool,
+}
+
+/// Detect role from agent string and environment
+fn detect_role_from_agent(agent: &str) -> String {
+    // Check _B00T_ROLE environment variable first
+    if let Ok(role) = std::env::var("_B00T_ROLE") {
+        if !role.is_empty() {
+            return role.to_lowercase();
+        }
+    }
+    
+    // Fallback to agent-based detection
+    if agent.contains("Claude") {
+        "captain".to_string()
+    } else if agent.contains("GPT") {
+        "operator".to_string()
+    } else {
+        "unknown".to_string()
+    }
+}
+
+/// Load blessings configuration
+fn load_blessings() -> Result<HashMap<String, AgentBlessing>> {
+    let config_dir = crate::session_memory::SessionMemory::get_config_path()?;
+    let blessings_path = config_dir.join("_b00t_").join("cake.🍰").join("agents").join("blessings.toml");
+    
+    if !blessings_path.exists() {
+        return Ok(HashMap::new());
+    }
+    
+    let content = std::fs::read_to_string(&blessings_path)?;
+    let blessings: HashMap<String, AgentBlessing> = toml::from_str(&content)?;
+    Ok(blessings)
+}
+
+/// Get role data with tools
+fn get_role_with_tools(role: &str) -> Result<serde_json::Value> {
+    let blessings = load_blessings()?;
+    
+    if let Some(blessing) = blessings.get(role) {
+        Ok(serde_json::json!({
+            "role": role,
+            "description": blessing.description,
+            "tools": blessing.tools,
+            "required_for_role": blessing.required_for_role
+        }))
+    } else {
+        Ok(serde_json::json!({
+            "role": role,
+            "description": "Unknown role",
+            "tools": [],
+            "required_for_role": false
+        }))
+    }
+}
+
+/// Show blessed tools for role
+fn show_blessed_tools(role: &str) -> Result<()> {
+    let blessings = load_blessings()?;
+    
+    if let Some(blessing) = blessings.get(role) {
+        println!("📜 Description: {}", blessing.description);
+        println!("🛠️  Blessed Tools:");
+        for tool in &blessing.tools {
+            let status = if tool_is_available(tool) { "✅" } else { "❌" };
+            println!("  {} {}", status, tool);
+        }
+        println!("🎯 Required: {}", if blessing.required_for_role { "Yes" } else { "No" });
+    } else {
+        println!("❓ No blessings found for role: {}", role);
+    }
+    
+    Ok(())
+}
+
+/// Check if a tool datum is available
+fn tool_is_available(tool_name: &str) -> bool {
+    let config_dir = crate::session_memory::SessionMemory::get_config_path().unwrap_or_default();
+    let tool_path = config_dir.join("_b00t_").join(tool_name);
+    tool_path.exists()
 }
 
 #[cfg(test)]

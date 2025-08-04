@@ -101,7 +101,7 @@ impl Default for SessionMetadata {
 
 impl SessionMemory {
     /// Get the git root path for storing ._b00t_.toml
-    fn get_config_path() -> Result<PathBuf> {
+    pub fn get_config_path() -> Result<PathBuf> {
         let git_root = get_workspace_root();
         Ok(PathBuf::from(git_root))
     }
