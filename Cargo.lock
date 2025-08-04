@@ -239,11 +239,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "b00t-c0re-lib"
+version = "0.0.0-git"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "dirs",
+ "duct",
+ "regex",
+ "serde",
+ "serde_json",
+ "shellexpand",
+ "tempfile",
+]
+
+[[package]]
 name = "b00t-cli"
 version = "0.0.0-git"
 dependencies = [
  "anyhow",
  "assert_cmd",
+ "b00t-c0re-lib",
  "chrono",
  "clap",
  "confy",
@@ -273,6 +289,7 @@ version = "0.0.0-git"
 dependencies = [
  "anyhow",
  "axum",
+ "b00t-c0re-lib",
  "b00t-cli",
  "chrono",
  "clap",
