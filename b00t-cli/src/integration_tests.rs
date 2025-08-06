@@ -73,6 +73,29 @@ mod integration_tests {
     }
 
     #[test]
+    #[test]
+    fn test_lfmf_creates_and_appends_lesson() {
+        use crate::commands::lfmf::handle_lfmf;
+        let temp_dir = setup_temp_dir();
+        let temp_path = temp_dir.path().to_str().unwrap();
+        let tool = "testtool";
+        let lesson1 = "First lesson learned.";
+        let lesson2 = "Second lesson learned.";
+        // First call: should create file
+        let result1 = handle_lfmf(temp_path, tool, lesson1);
+        assert!(result1.is_ok());
+        let file_path = temp_dir.path().join("learn").join(format!("{}.md", tool));
+        assert!(file_path.exists());
+        let content1 = std::fs::read_to_string(&file_path).unwrap();
+        assert!(content1.contains(lesson1));
+        // Second call: should append
+        let result2 = handle_lfmf(temp_path, tool, lesson2);
+        assert!(result2.is_ok());
+        let content2 = std::fs::read_to_string(&file_path).unwrap();
+        assert!(content2.contains(lesson1));
+        assert!(content2.contains(lesson2));
+    }
+
     fn test_mcp_add_with_dwiw() {
         let temp_dir = setup_temp_dir();
         let temp_path = temp_dir.path().to_str().unwrap();
