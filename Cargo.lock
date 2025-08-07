@@ -250,6 +250,7 @@ dependencies = [
  "regex",
  "serde",
  "serde_json",
+ "serde_yaml",
  "shellexpand",
  "tempfile",
  "tokio",

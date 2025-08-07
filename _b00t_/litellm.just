@@ -9,12 +9,16 @@ alias up := run
 # Start LiteLLM proxy server with generated configuration
 run:
 	@echo "🚀 Starting LiteLLM proxy server..."
-	@just _ensure-config
+	@just _scan-models > {{justfile_directory()}}/_b00t_generated.yaml
+	@echo "⚙️  Configuration generated"
 	podman run --replace --name litellm-proxy \
 		--rm -d \
-		-v {{justfile_directory()}}/litellm/_b00t_generated.yaml:/app/config.yaml \
+		-v {{justfile_directory()}}/_b00t_generated.yaml:/app/config.yaml \
 		-p 4000:4000 \
-		--env-file {{justfile_directory()}}/litellm/.env \
+		-e LITELLM_MASTER_KEY \
+		-e ANTHROPIC_API_KEY \
+		-e OPENROUTER_API_KEY \
+		-e OPENAI_API_KEY \
 		ghcr.io/berriai/litellm:main-latest \
 		--config /app/config.yaml --detailed_debug
 	@echo "✅ LiteLLM proxy started on http://localhost:4000"
@@ -47,8 +51,8 @@ test:
 # Generate LiteLLM configuration from b00t AI model datums
 config:
 	@echo "⚙️  Generating LiteLLM config from b00t AI model datums..."
-	@just --justfile {{justfile()}} _scan-models > {{justfile_directory()}}/litellm/_b00t_generated.yaml
-	@echo "✅ Configuration generated: litellm/_b00t_generated.yaml"
+	@just _scan-models > {{justfile_directory()}}/_b00t_generated.yaml
+	@echo "✅ Configuration generated: _b00t_generated.yaml"
 
 # Show available models from b00t datums
 models:
@@ -62,29 +66,20 @@ status:
 	@echo ""
 	@curl -s http://localhost:4000/v1/models 2>/dev/null | jq -r '.data[] | "• " + .id' 2>/dev/null || echo "❌ Proxy not responding"
 
-# Create .env template if it doesn't exist
+# Check environment variables are loaded via direnv
 init:
-	@if [ ! -f {{justfile_directory()}}/litellm/.env ]; then \
-		echo "🔧 Creating environment template..."; \
-		just --justfile {{justfile()}} _create-env-template; \
-		echo "✅ Edit litellm/.env with your API keys"; \
-	else \
-		echo "✅ Environment file already exists"; \
-	fi
+	@echo "🔧 Checking environment setup..."
+	@echo "LITELLM_MASTER_KEY: $${LITELLM_MASTER_KEY:-❌ Not set}"
+	@echo "OPENROUTER_API_KEY: $${OPENROUTER_API_KEY:-❌ Not set}" 
+	@echo "ANTHROPIC_API_KEY: $${ANTHROPIC_API_KEY:-❌ Not set}"
+	@echo "✅ Environment managed by direnv"
 
 # Clean up generated files and containers
 clean:
 	@echo "🧹 Cleaning up LiteLLM resources..."
 	-podman rm -f litellm-proxy
-	-rm -f {{justfile_directory()}}/litellm/_b00t_generated.yaml
+	-rm -f {{justfile_directory()}}/_b00t_generated.yaml
 	@echo "✅ Cleanup complete"
-
-# Private: Ensure config exists or generate it
-_ensure-config:
-	@if [ ! -f {{justfile_directory()}}/litellm/_b00t_generated.yaml ]; then \
-		echo "⚙️  Configuration not found, generating..."; \
-		just config; \
-	fi
 
 # Private: Scan b00t AI model datums and generate litellm YAML
 _scan-models:
@@ -110,26 +105,38 @@ _scan-models:
             echo "  - model_name: $name"
             echo "    litellm_params:"
             
-            # Use safer TOML parsing with fallbacks
+            # Parse LiteLLM model configuration
             if litellm_model=$(toml get "$file" ai_model.litellm_model 2>/dev/null); then
                 litellm_model=$(echo "$litellm_model" | tr -d '"')
                 echo "      model: $litellm_model"
             else
-                echo "      model: openai/$name"
+                echo "      model: openrouter/$name"  # Default to OpenRouter
             fi
             
+            # API key configuration
             if api_key_env=$(toml get "$file" ai_model.api_key_env 2>/dev/null); then
                 api_key_env=$(echo "$api_key_env" | tr -d '"')
                 [[ -n "$api_key_env" ]] && echo "      api_key: \"os.environ/$api_key_env\""
             fi
             
+            # API base URL
             if api_base=$(toml get "$file" ai_model.api_base 2>/dev/null); then
                 api_base=$(echo "$api_base" | tr -d '"')
-                [[ -n "$api_base" ]] && echo "      api_base: $api_base"
+                [[ -n "$api_base" && "$api_base" != '""' ]] && echo "      api_base: $api_base"
             fi
             
+            # Rate limiting
             if rpm_limit=$(toml get "$file" ai_model.rpm_limit 2>/dev/null); then
                 [[ -n "$rpm_limit" && "$rpm_limit" != "null" ]] && echo "      rpm: $rpm_limit"
+            fi
+            
+            # Model parameters from TOML
+            if max_tokens=$(toml get "$file" ai_model.parameters.max_tokens 2>/dev/null); then
+                [[ -n "$max_tokens" && "$max_tokens" != "null" ]] && echo "      max_tokens: $max_tokens"
+            fi
+            
+            if temperature=$(toml get "$file" ai_model.parameters.temperature 2>/dev/null); then
+                [[ -n "$temperature" && "$temperature" != "null" ]] && echo "      temperature: $temperature"
             fi
             
             echo ""
@@ -144,33 +151,6 @@ _scan-models:
     echo "  set_verbose: false"
     echo "  json_logs: true"
 
-# Private: Create environment template
-_create-env-template:
-    #!/usr/bin/env bash
-    mkdir -p {{justfile_directory()}}/litellm
-    cat > {{justfile_directory()}}/litellm/.env << 'EOF'
-    # LiteLLM Environment Configuration
-    # 🤓 Add your API keys here - this file is gitignored
-
-    # Master key for LiteLLM proxy authentication
-    LITELLM_MASTER_KEY=sk-b00t-dev-key-please-change-me
-
-    # Provider API Keys (uncomment and add your keys)
-    # OPENAI_API_KEY=sk-...
-    # ANTHROPIC_API_KEY=sk-ant-...
-    # AZURE_API_KEY=...
-    # GOOGLE_API_KEY=...
-    # FIREWORKS_API_KEY=...
-    # GROQ_API_KEY=gsk_...
-    # XAI_API_KEY=xai_...
-
-    # Provider specific settings
-    # AZURE_API_BASE=https://your-azure-endpoint.openai.azure.com/
-    # AZURE_API_VERSION=2024-02-15-preview
-
-    # Fireworks (from existing config - REMOVE after migration)  
-    # FIREWORKS_ACCOUNT=your-account
-    EOF
 
 # Private: Test completion with a simple model
 _test-completion:

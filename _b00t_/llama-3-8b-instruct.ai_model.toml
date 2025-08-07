@@ -7,11 +7,11 @@ type = "ai_model"
 hint = "Meta's fast 8B parameter instruction-tuned model"
 
 [ai_model]
-provider = "fireworks_ai"
+provider = "openrouter"
 size = "sm0l"  # Using alias for small
 capabilities = ["chat", "code"]
-litellm_model = "fireworks_ai/accounts/fireworks/models/llama-v3-8b-instruct"
-api_key_env = "FIREWORKS_API_KEY"
+litellm_model = "openrouter/meta-llama/llama-3-8b-instruct"
+api_key_env = "OPENROUTER_API_KEY"
 rpm_limit = 600
 context_window = 8192
 access_groups = ["public", "dev"]

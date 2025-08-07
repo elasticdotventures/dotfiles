@@ -6,6 +6,9 @@ Just is a command runner (not a build system) that avoids make's complexity and 
 - [Official Just Manual](https://just.systems/man/en/)
 - [Working Directory Control](https://just.systems/man/en/working-directory.html)
 - [Aliases](https://just.systems/man/en/aliases.html)
+- [Modules System](https://just.systems/man/en/modules1190.html)
+- [Imports](https://just.systems/man/en/imports.html)
+- [Invoking Justfiles in Other Directories](https://just.systems/man/en/invoking-justfiles-in-other-directories.html)
 
 ## Core Syntax & Environment Variables
 
@@ -290,15 +293,87 @@ start-dev-server:
     npm run dev
 ```
 
-### Module Aliases
-```bash
-# Reference recipes in submodules
-mod frontend
-mod backend
+## Modules System
 
-alias ui := frontend::start
-alias api := backend::serve
+### Module Declaration Syntax
+```bash
+# Basic module declaration
+mod module_name
+
+# Explicit path to module file
+mod module_name 'path/to/file.just'
+
+# Optional module (won't fail if missing)
+mod? optional_module
 ```
+
+### Module File Resolution Order
+1. `module_name.just`
+2. `module_name/mod.just`  
+3. `module_name/justfile`
+4. `module_name/.justfile`
+
+### Module Recipe Invocation
+```bash
+# Subcommand syntax
+just module_name recipe_name
+
+# Alternative syntax
+just module_name::recipe_name
+
+# List module recipes
+just --list module_name
+```
+
+### Module Characteristics
+- Recipes/variables scoped within module
+- Recipes run in module's source directory
+- Environment variables only loaded in root justfile
+- Stabilized in Just 1.31.0
+
+## Imports vs Modules
+
+### Import System
+```bash
+# Include contents of another justfile
+import 'path/to/file.just'
+
+# Optional import (won't fail if missing)
+import? 'path/to/file.just'
+
+# Import with duplicate handling
+import 'common.just'
+```
+
+### Import Characteristics
+- Merges contents into current justfile namespace
+- No scoping - imported recipes available directly
+- Recursive imports supported
+- Order-insensitive resolution
+- Precedence: shallower overrides deeper definitions
+
+### Modules vs Imports Comparison
+| Feature | Modules | Imports |
+|---------|---------|---------|
+| **Namespace** | Scoped (`mod::recipe`) | Merged into current |
+| **Invocation** | `just mod recipe` | `just recipe` |
+| **Working Dir** | Module's directory | Current justfile's directory |
+| **Use Case** | Separate tools/domains | Shared utilities/config |
+
+## Directory Invocation
+
+### Slash Syntax
+```bash
+# Equivalent patterns
+just path/recipe        # Run recipe in path/justfile
+(cd path && just recipe)  # Traditional approach
+just path/              # Run default recipe in path/
+```
+
+### Path Resolution
+- Splits at last `/`
+- Before `/` = directory to search
+- After `/` = recipe name (or empty for default)
 
 ## Key Rules for b00t
 
