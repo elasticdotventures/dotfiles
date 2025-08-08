@@ -7,19 +7,18 @@
       "command": "./target/debug/b00t-mcp",
       "env": {}
     },
-    "browser-use": {
-      "args": [
-        "browser-use[cli]",
-        "--mcp"
-      ],
-      "command": "uvx"
-    },
     "github": {
       "args": [
         "-y",
         "@modelcontextprotocol/server-github"
       ],
       "command": "npx"
+    },
+    "taskmaster-ai": {
+      "args": ["-y", "--package=task-master-ai", "task-master-ai"],
+      "command": "bunx",
+      "env": {
+      }
     }
   }
 }

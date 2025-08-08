@@ -345,6 +345,7 @@ sudo apt-get install -y nmap
 
 # https://github.com/buger/probe
 bun install -g @buger/probe
+bun install -g @buger/probe
 
 uv tool install multiplex-sh
 multiplex --help
@@ -357,6 +358,7 @@ curl -sSL https://raw.githubusercontent.com/brennercruvinel/CCPlugins/main/insta
 # TODO: https://github.com/mcp-use
 # https://github.com/awslabs/mcp
 # https://github.com/browser-use/browser-use
+
 
 # TILT:
 # https://github.com/aryan-agrawal-glean/tilt-mcp

@@ -1,0 +1,41 @@
+[package]
+name = "b00t-grok"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+chrono = { workspace = true, features = ["serde"] }
+pyo3 = { version = "0.25.1", features = ["extension-module"], optional = true }
+qdrant-client = "1.15.0"
+reqwest = { version = "0.12.22", features = ["json"] }
+serde = { workspace = true, features = ["derive"] }
+serde_json.workspace = true
+tokio = { workspace = true, features = ["full"] }
+toml.workspace = true
+tracing.workspace = true
+uuid = { version = "1.17.0", features = ["serde", "v4"] }
+
+[lints]
+workspace = true
+
+[lib]
+name = "b00t_grok"
+crate-type = ["cdylib", "rlib"]
+
+[features]
+default = ["pyo3"]
+pyo3 = ["dep:pyo3"]
+
+[tool.maturin]
+profile = "release"
+features = ["pyo3", "pyo3/extension-module"]
+bindings = "pyo3"
+compatibility = "manylinux2014"
+skip-auditwheel = false
+python-source = "src"
+strip = true
+sdist-generator = "cargo"
