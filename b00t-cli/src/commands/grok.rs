@@ -66,8 +66,7 @@ print(f"📅 Created: {{chunk['metadata']['created_at']}}")
         qdrant_url,
         api_key,
         topic.replace('"', r#"\""#),
-        topic_json,
-        content_json,
+        content.replace('"', r#"\""#).replace('\n', r#"\n"#),
         topic
     );
     
@@ -149,7 +148,7 @@ for i, chunk_json in enumerate(chunks):
         qdrant_url,
         api_key,
         source_str.replace('"', r#"\""#),
-        content.replace('"', r#"\""#),
+        content.replace('"', r#"\""#).replace('\n', r#"\n"#),
         source_str
     );
     

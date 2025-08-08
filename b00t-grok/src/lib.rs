@@ -2,6 +2,13 @@ use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use uuid::Uuid;
+use qdrant_client::{
+    Qdrant,
+    qdrant::{
+        CreateCollection, Distance, PointStruct, SearchPoints, VectorParams,
+        WithPayloadSelector, Filter, Condition, Vectors, CollectionOperationResponse,
+    },
+};
 
 #[cfg(feature = "pyo3")]
 use pyo3::prelude::*;
@@ -38,13 +45,12 @@ pub struct ChunkMetadata {
     pub created_at: String,
 }
 
-#[derive(Debug)]
 pub struct GrokClient {
     qdrant_url: String,
     api_key: String,
     collection_name: String,
     embedding_model: Option<EmbeddingModel>,
-    // TODO: Add Qdrant client when API stabilizes
+    qdrant_client: Option<Qdrant>,
 }
 
 #[derive(Debug)]
@@ -76,16 +82,65 @@ impl GrokClient {
             api_key,
             collection_name: "b00t_chunks".to_string(),
             embedding_model: None,
+            qdrant_client: None,
         }
     }
 
     pub async fn initialize(&mut self) -> Result<()> {
+        // Initialize Qdrant client
+        let client = Qdrant::from_url(&self.qdrant_url)
+            .api_key(self.api_key.clone())
+            .build()?;
+        
         // Initialize embedding model
         let embedding_model = EmbeddingModel::new().await?;
+        
+        self.qdrant_client = Some(client);
         self.embedding_model = Some(embedding_model);
+
+        // Ensure collection exists
+        self.ensure_collection_exists().await?;
 
         tracing::info!("GrokClient initialized for {}", self.qdrant_url);
         Ok(())
+    }
+
+    async fn ensure_collection_exists(&self) -> Result<()> {
+        let client = self.qdrant_client.as_ref()
+            .ok_or_else(|| anyhow::anyhow!("Qdrant client not initialized"))?;
+
+        // Check if collection exists
+        match client.collection_info(&self.collection_name).await {
+            Ok(_) => {
+                tracing::info!("Collection '{}' already exists", self.collection_name);
+                Ok(())
+            }
+            Err(_) => {
+                // Collection doesn't exist, create it
+                tracing::info!("Creating collection '{}'", self.collection_name);
+                
+                let create_collection = CreateCollection {
+                    collection_name: self.collection_name.clone(),
+                    vectors_config: Some(VectorParams {
+                        size: 384,
+                        distance: Distance::Cosine.into(),
+                        ..Default::default()
+                    }.into()),
+                    ..Default::default()
+                };
+
+                let response: CollectionOperationResponse = client
+                    .create_collection(create_collection)
+                    .await?;
+
+                if response.result {
+                    tracing::info!("Successfully created collection '{}'", self.collection_name);
+                } else {
+                    anyhow::bail!("Failed to create collection '{}'", self.collection_name);
+                }
+                Ok(())
+            }
+        }
     }
 
     fn generate_embedding(&self, text: &str) -> Result<Vec<f32>> {
@@ -95,11 +150,15 @@ impl GrokClient {
     }
 
     pub async fn digest(&self, topic: &str, content: &str) -> Result<Chunk> {
+        let client = self.qdrant_client.as_ref()
+            .ok_or_else(|| anyhow::anyhow!("Qdrant client not initialized"))?;
+
         // Generate vector embedding
-        let vector = self.generate_embedding(content).ok();
+        let vector = self.generate_embedding(content)?;
+        let chunk_id = Uuid::new_v4();
         
         let chunk = Chunk {
-            id: Uuid::new_v4(),
+            id: chunk_id,
             content: content.to_string(),
             datum: topic.to_string(),
             attribution: Attribution {
@@ -112,26 +171,152 @@ impl GrokClient {
                 tags: vec![],
                 created_at: chrono::Utc::now().to_rfc3339(),
             },
-            vector,
+            vector: Some(vector.clone()),
         };
 
-        // TODO: Store in Qdrant when client is implemented
+        // Store in Qdrant
+        let mut payload = HashMap::new();
+        payload.insert("content".to_string(), content.into());
+        payload.insert("datum".to_string(), topic.into());
+        payload.insert("topic".to_string(), topic.into());
+        payload.insert("created_at".to_string(), chunk.metadata.created_at.clone().into());
+
+        let point = PointStruct::new(
+            chunk_id.to_string(),
+            vector,
+            payload,
+        );
+
+        let upsert_request = qdrant_client::qdrant::UpsertPoints {
+            collection_name: self.collection_name.clone(),
+            points: vec![point],
+            ..Default::default()
+        };
+
+        client
+            .upsert_points(upsert_request)
+            .await?;
+
+        tracing::info!("Stored chunk {} for topic '{}' in Qdrant", chunk_id, topic);
 
         Ok(chunk)
     }
 
-    pub async fn ask(&self, _query: &str, _topic: Option<&str>) -> Result<Vec<Chunk>> {
-        // TODO: Implement vector search with Qdrant
-        Ok(vec![])
+    pub async fn ask(&self, query: &str, topic: Option<&str>) -> Result<Vec<Chunk>> {
+        let client = self.qdrant_client.as_ref()
+            .ok_or_else(|| anyhow::anyhow!("Qdrant client not initialized"))?;
+
+        // Generate query embedding
+        let query_vector = self.generate_embedding(query)?;
+
+        // Build search request
+        let mut search_request = SearchPoints {
+            collection_name: self.collection_name.clone(),
+            vector: query_vector,
+            limit: 10,
+            with_payload: Some(WithPayloadSelector {
+                selector_options: Some(qdrant_client::qdrant::with_payload_selector::SelectorOptions::Enable(true)),
+            }),
+            ..Default::default()
+        };
+
+        // Add topic filter if specified
+        if let Some(topic_filter) = topic {
+            let filter = Filter {
+                must: vec![Condition {
+                    condition_one_of: Some(qdrant_client::qdrant::condition::ConditionOneOf::Field(
+                        qdrant_client::qdrant::FieldCondition {
+                            key: "topic".to_string(),
+                            r#match: Some(qdrant_client::qdrant::Match {
+                                match_value: Some(qdrant_client::qdrant::r#match::MatchValue::Text(topic_filter.to_string())),
+                            }),
+                            ..Default::default()
+                        }
+                    )),
+                }],
+                ..Default::default()
+            };
+            search_request.filter = Some(filter);
+        }
+
+        let search_result = client.search_points(search_request).await?;
+
+        let mut chunks = Vec::new();
+        for scored_point in search_result.result {
+            let payload = scored_point.payload;
+            let content = payload.get("content")
+                .and_then(|v| v.as_str())
+                .map_or("", |v| v)
+                .to_string();
+            
+            let datum = payload.get("datum")
+                .and_then(|v| v.as_str())
+                .map_or("unknown", |v| v)
+                .to_string();
+            
+            let topic_str = payload.get("topic")
+                .and_then(|v| v.as_str())
+                .map_or("unknown", |v| v)
+                .to_string();
+            
+            let created_at = payload.get("created_at")
+                .and_then(|v| v.as_str())
+                .map_or("", |v| v)
+                .to_string();
+
+            let point_id = match &scored_point.id {
+                Some(id) => match id.point_id_options.as_ref() {
+                    Some(qdrant_client::qdrant::point_id::PointIdOptions::Uuid(uuid_str)) => {
+                        Uuid::parse_str(uuid_str).unwrap_or_else(|_| Uuid::new_v4())
+                    }
+                    Some(qdrant_client::qdrant::point_id::PointIdOptions::Num(_)) => Uuid::new_v4(),
+                    None => Uuid::new_v4(),
+                }
+                None => Uuid::new_v4(),
+            };
+
+            let chunk = Chunk {
+                id: point_id,
+                content,
+                datum: datum.clone(),
+                attribution: Attribution {
+                    url: None,
+                    filename: None,
+                    date: created_at.clone(),
+                },
+                metadata: ChunkMetadata {
+                    topic: topic_str,
+                    tags: vec![format!("score_{:.3}", scored_point.score)],
+                    created_at,
+                },
+                vector: scored_point.vectors.and_then(|v| match v.vectors_options? {
+                    qdrant_client::qdrant::vectors_output::VectorsOptions::Vector(vector_struct) => {
+                        Some(vector_struct.data)
+                    }
+                    _ => None,
+                }),
+            };
+            
+            chunks.push(chunk);
+        }
+
+        tracing::info!("Found {} chunks for query '{}' with topic filter {:?}", 
+                      chunks.len(), query, topic);
+
+        Ok(chunks)
     }
 
     pub async fn learn(&self, source: &str, content: &str) -> Result<Vec<Chunk>> {
+        let client = self.qdrant_client.as_ref()
+            .ok_or_else(|| anyhow::anyhow!("Qdrant client not initialized"))?;
+
         // Simple chunking for now - split by double newlines
         let chunks: Vec<&str> = content.split("\n\n")
             .filter(|chunk| !chunk.trim().is_empty())
             .collect();
         
         let mut result_chunks = Vec::new();
+        let mut points = Vec::new();
         
         for (i, chunk_text) in chunks.into_iter().enumerate() {
             let trimmed = chunk_text.trim();
@@ -139,11 +324,11 @@ impl GrokClient {
             
             // Infer topic from source or use "general"
             let inferred_topic = self.infer_topic_from_source(source);
-            
-            let vector = self.generate_embedding(trimmed).ok();
+            let chunk_id = Uuid::new_v4();
+            let vector = self.generate_embedding(trimmed)?;
             
             let chunk = Chunk {
-                id: Uuid::new_v4(),
+                id: chunk_id,
                 content: trimmed.to_string(),
                 datum: inferred_topic.clone(),
                 attribution: Attribution {
@@ -154,18 +339,48 @@ impl GrokClient {
                     date: chrono::Utc::now().to_rfc3339(),
                 },
                 metadata: ChunkMetadata {
-                    topic: inferred_topic,
+                    topic: inferred_topic.clone(),
                     tags: vec![format!("chunk_{}", i)],
                     created_at: chrono::Utc::now().to_rfc3339(),
                 },
-                vector,
+                vector: Some(vector.clone()),
             };
-            
-            // TODO: Store in Qdrant when client is implemented
-            
+
+            // Prepare point for batch insertion
+            let mut payload = HashMap::new();
+            payload.insert("content".to_string(), trimmed.into());
+            payload.insert("datum".to_string(), inferred_topic.clone().into());
+            payload.insert("topic".to_string(), inferred_topic.into());
+            payload.insert("source".to_string(), source.into());
+            payload.insert("created_at".to_string(), chunk.metadata.created_at.clone().into());
+            payload.insert("chunk_index".to_string(), (i as i64).into());
+
+            let point = PointStruct::new(
+                chunk_id.to_string(),
+                vector,
+                payload,
+            );
+
+            points.push(point);
             result_chunks.push(chunk);
         }
         
+        // Batch insert all points
+        if !points.is_empty() {
+            let upsert_request = qdrant_client::qdrant::UpsertPoints {
+                collection_name: self.collection_name.clone(),
+                points,
+                ..Default::default()
+            };
+
+            client
+                .upsert_points(upsert_request)
+                .await?;
+
+            tracing::info!("Stored {} chunks from source '{}' in Qdrant", 
+                          result_chunks.len(), source);
+        }
+
         Ok(result_chunks)
     }
     
