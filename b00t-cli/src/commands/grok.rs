@@ -183,7 +183,11 @@ fn get_qdrant_url() -> Result<String> {
     }
     
     // Fallback to hardcoded URL
-    Ok("https://a0cfd978-2e95-499c-93cc-9acd66b16d35.us-west-1-0.aws.cloud.qdrant.io:6333".to_string())
+    // Fallback to environment variable
+    if let Ok(url) = env::var("QDRANT_URL") {
+        return Ok(url);
+    }
+    Err(anyhow::anyhow!("Qdrant URL not found in config or QDRANT_URL environment variable"))
 }
 
 fn get_qdrant_api_key() -> Result<String> {
