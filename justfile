@@ -136,3 +136,10 @@ install-tool TOOL:
     #!/bin/bash
     echo "📦 Installing tool: {{TOOL}}"
     echo "TODO: Implement tool installation via b00t cli"
+
+# Qdrant vector database
+qdrant-run:
+    podman run -d --name qdrant-container -p 6333:6333 docker.io/qdrant/qdrant:latest
+
+qdrant-stop:
+    podman stop qdrant-container && podman rm qdrant-container

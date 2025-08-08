@@ -112,7 +112,7 @@ for i, result_json in enumerate(results):
         query
     );
     
-    let output = std::process::Command::new(get_python_executable())
+    let output = std::process::Command::new("python3")
         .arg("-c")
         .arg(python_code)
         .output()?;
@@ -152,8 +152,8 @@ for i, chunk_json in enumerate(chunks):
         source_str
     );
     
-    let python_executable = get_python_executable();
-    let output = std::process::Command::new(python_executable)
+    let python_executable = get_python_executable()?;
+    let output = std::process::Command::new(&python_executable)
         .arg("-c")
         .arg(python_code)
         .output()?;
@@ -165,6 +165,17 @@ for i, chunk_json in enumerate(chunks):
     }
     
     Ok(())
+}
+
+fn get_python_executable() -> Result<String> {
+    // 🤓 Get the correct Python executable from current environment (uv venv compatible)
+    let python_path = std::process::Command::new("python3")
+        .arg("-c")
+        .arg("import sys; print(sys.executable)")
+        .output()?
+        .stdout;
+    
+    Ok(String::from_utf8(python_path)?.trim().to_string())
 }
 
 fn get_qdrant_url() -> Result<String> {
