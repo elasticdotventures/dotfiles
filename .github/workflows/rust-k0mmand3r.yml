@@ -46,7 +46,7 @@ jobs:
         if: env.SKIP_TESTS == 'false'
         uses: cargo-bins/cargo-binstall@v1.4.9
 
-            - name: run tests 🦄 (typescript)
+      - name: run tests 🦄 (typescript)
         if: ${{ env.SKIP_TESTS == 'false' }}
         run: |
           rustup target add wasm32-unknown-unknown
