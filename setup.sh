@@ -345,7 +345,6 @@ sudo apt-get install -y nmap
 
 # https://github.com/buger/probe
 bun install -g @buger/probe
-bun install -g @buger/probe
 
 uv tool install multiplex-sh
 multiplex --help
