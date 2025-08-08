@@ -113,7 +113,7 @@ for i, result_json in enumerate(results):
         query
     );
     
-    let output = std::process::Command::new("python3")
+    let output = std::process::Command::new(get_python_executable())
         .arg("-c")
         .arg(python_code)
         .output()?;
