@@ -152,7 +152,8 @@ for i, chunk_json in enumerate(chunks):
         source_str
     );
     
-    let output = std::process::Command::new("python3")
+    let python_executable = get_python_executable();
+    let output = std::process::Command::new(python_executable)
         .arg("-c")
         .arg(python_code)
         .output()?;
