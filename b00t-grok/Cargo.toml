@@ -18,6 +18,12 @@ tokio = { workspace = true, features = ["full"] }
 toml.workspace = true
 tracing.workspace = true
 uuid = { version = "1.17.0", features = ["serde", "v4"] }
+# Vector embeddings support - using more stable alternatives
+# candle-core = "0.8.1" 
+# candle-nn = "0.8.1"
+# candle-transformers = "0.8.1"
+# tokenizers = "0.21.0"
+# 🤓 Candle ecosystem too unstable for production, use Python embedding service instead
 
 [lints]
 workspace = true
@@ -30,12 +36,13 @@ crate-type = ["cdylib", "rlib"]
 default = ["pyo3"]
 pyo3 = ["dep:pyo3"]
 
-[tool.maturin]
-profile = "release"
-features = ["pyo3", "pyo3/extension-module"]
-bindings = "pyo3"
-compatibility = "manylinux2014"
-skip-auditwheel = false
-python-source = "src"
-strip = true
-sdist-generator = "cargo"
+# 🦨 Remove unused maturin config - will configure in pyproject.toml when needed
+# [tool.maturin]
+# profile = "release"
+# features = ["pyo3", "pyo3/extension-module"]
+# bindings = "pyo3"
+# compatibility = "manylinux2014"
+# skip-auditwheel = false
+# python-source = "src"
+# strip = true
+# sdist-generator = "cargo"
