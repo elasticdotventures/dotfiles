@@ -9,7 +9,12 @@ def test_grok():
     # Get credentials from environment
     qdrant_url = "https://a0cfd978-2e95-499c-93cc-9acd66b16d35.us-west-1-0.aws.cloud.qdrant.io:6333"
     api_key = os.environ.get('QDRANT_API_KEY')
+    qdrant_url = os.environ.get('QDRANT_URL')
+    api_key = os.environ.get('QDRANT_API_KEY')
     
+    if not qdrant_url:
+        print("❌ QDRANT_URL not found in environment")
+        return
     if not api_key:
         print("❌ QDRANT_API_KEY not found in environment")
         return
