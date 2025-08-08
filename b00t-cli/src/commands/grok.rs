@@ -66,7 +66,8 @@ print(f"📅 Created: {{chunk['metadata']['created_at']}}")
         qdrant_url,
         api_key,
         topic.replace('"', r#"\""#),
-        content.replace('"', r#"\""#),
+        topic_json,
+        content_json,
         topic
     );
     
