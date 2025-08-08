@@ -14,14 +14,11 @@ jobs:
 
   run-tests:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ${{ env.PROJECT_ROOT }}
     steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
+- uses: actions/checkout@v4
+         with:
+           fetch-depth: 0
+           path: .
       - name: install stable
         uses: actions-rs/toolchain@v1
         with:
@@ -33,10 +30,12 @@ jobs:
         if: env.SKIP_TESTS == 'false'
         run: |
           cargo test --all-features
+working-directory: rust/k0mmand3r
       - name: build crate 🦀 (rust)
         if: env.SKIP_TESTS == 'false'
         run: |
           cargo build --all-features
+working-directory: rust/k0mmand3r
 
       ###########################
       # typescript
@@ -57,14 +56,14 @@ jobs:
 
       - name: run tests 🦄 (typescript)
         if: env.SKIP_TESTS == 'false'
-        run: |
-          rustup target add wasm32-unknown-unknown
-          cargo binstall --no-confirm wasm-pack
-          wasm-pack build --target nodejs
-          # npx mocha tests/test_k0mmand3r.ts
-          npm ci
-          npm test
-
+run: |
+           rustup target add wasm32-unknown-unknown
+           cargo binstall --no-confirm wasm-pack
+           wasm-pack build --target nodejs
+           # npx mocha tests/test_k0mmand3r.ts
+           npm ci
+           npm test
+working-directory: rust/k0mmand3r
       ###########################
       # python
       # 😉: `maturin generate-ci github`
@@ -84,12 +83,12 @@ jobs:
 
       - name: run tests 🐍 (python)
         if: env.SKIP_TESTS == 'false'
-        run: |
-          python3 -m venv ./venv
-          pip install --find-links ./dist k0mmand3r
-          # python3 -m unittest discover -s tests
-          make pytest
-
+run: |
+           python3 -m venv ./venv
+           pip install --find-links ./dist k0mmand3r
+           # python3 -m unittest discover -s tests
+           make pytest
+working-directory: rust/k0mmand3r
       # TODO: upload the crate artifcat so we don't need to recompile.
       - name: Upload wasm artifacts
         if: env.SKIP_TESTS == 'false'
@@ -105,14 +104,11 @@ jobs:
     ## comment this to test the action:
     # if: github.event.pull_request.merged == true
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ${{ env.PROJECT_ROOT }}
     steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - name: is pull request
+- uses: actions/checkout@v4
+         with:
+           fetch-depth: 0
+           path: .      - name: is pull request
         run: |
           echo "is pull request (merged)"
           echo ${{ github.event.pull_request.merged }}
@@ -127,15 +123,12 @@ jobs:
     name: Release Rust Crate 🦀
     needs: [ is-release ]
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ${{ env.PROJECT_ROOT }}
 
     steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
+- uses: actions/checkout@v4
+         with:
+           fetch-depth: 0
+           path: .
       - name: install stable
         uses: actions-rs/toolchain@v1
         with:
@@ -174,9 +167,6 @@ jobs:
     # This Action bumps the version in package.json and pushes it back to the repo. It is meant to be used on every successful merge to master but you'll need to configure that workflow yourself
     needs: [ is-release, is-release ]
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ${{ env.PROJECT_ROOT }}
 
     steps:
       # - name: Build WASM module
@@ -216,18 +206,15 @@ jobs:
   build-python-linux:
     needs: [ is-release ]
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ${{ env.PROJECT_ROOT }}
     strategy:
       matrix:
         target: [ x86_64, x86, aarch64, armv7, s390x, ppc64le ]
 
     steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
+- uses: actions/checkout@v4
+         with:
+           fetch-depth: 0
+           path: .
       - uses: actions/setup-python@v4
         with:
           python-version: '3.10'
@@ -254,9 +241,6 @@ jobs:
   build-python-windows:
     needs: [ is-release ]
     runs-on: windows-latest
-    defaults:
-      run:
-        working-directory: ${{ env.PROJECT_ROOT }}
     strategy:
       matrix:
         target: [x64, x86]
@@ -286,9 +270,6 @@ jobs:
   build-python-macos:
     needs: [ is-release ]
     runs-on: macos-latest
-    defaults:
-      run:
-        working-directory: ${{ env.PROJECT_ROOT }}
     strategy:
       matrix:
         target: [x86_64, aarch64]
@@ -316,9 +297,6 @@ jobs:
   build-python-sdist:
     needs: [ is-release ]
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ${{ env.PROJECT_ROOT }}
     steps:
       - uses: actions/checkout@v3
 
@@ -339,9 +317,6 @@ jobs:
     needs: [ is-release, build-python-linux, build-python-windows, build-python-macos, build-python-sdist ]
     name: Release python 🐍
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ${{ env.PROJECT_ROOT }}
     # if: "startsWith(github.ref, 'refs/tags/')"
     steps:
       - uses: actions/download-artifact@v3
