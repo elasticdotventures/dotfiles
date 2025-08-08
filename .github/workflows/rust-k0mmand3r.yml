@@ -1,24 +1,24 @@
+---
 name: K0mmand3r (rust, python, & wasm/typescript)
 
 on:
   # push:
-  #   branches: [ main ]
+  #   branches: [main]
   pull_request:
-    branches: [ main ]
+    branches: [main]
 
 env:
   PROJECT_ROOT: rust/k0mmand3r
   SKIP_TESTS: false
 
 jobs:
-
   run-tests:
     runs-on: ubuntu-latest
     steps:
-- uses: actions/checkout@v4
-         with:
-           fetch-depth: 0
-           path: .
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          path: .
       - name: install stable
         uses: actions-rs/toolchain@v1
         with:
@@ -27,19 +27,11 @@ jobs:
           components: rustfmt, clippy
 
       - name: run tests 🦀
-        if: env.SKIP_TESTS == 'false'
-        run: |
-          cargo test --all-features
-working-directory: rust/k0mmand3r
-      - name: build crate 🦀 (rust)
-        if: env.SKIP_TESTS == 'false'
-        run: |
-          cargo build --all-features
-working-directory: rust/k0mmand3r
+        if: ${{ env.SKIP_TESTS == 'false' }}
+        run: cargo test --all-features
+        working-directory: rust/k0mmand3r
 
-      ###########################
-      # typescript
-      ###########################
+      # typescript      ###########################
       - # https://github.com/actions/setup-node
         uses: actions/setup-node@v4
         with:
@@ -54,16 +46,16 @@ working-directory: rust/k0mmand3r
         if: env.SKIP_TESTS == 'false'
         uses: cargo-bins/cargo-binstall@v1.4.9
 
-      - name: run tests 🦄 (typescript)
-        if: env.SKIP_TESTS == 'false'
-run: |
-           rustup target add wasm32-unknown-unknown
-           cargo binstall --no-confirm wasm-pack
-           wasm-pack build --target nodejs
-           # npx mocha tests/test_k0mmand3r.ts
-           npm ci
-           npm test
-working-directory: rust/k0mmand3r
+            - name: run tests 🦄 (typescript)
+        if: ${{ env.SKIP_TESTS == 'false' }}
+        run: |
+          rustup target add wasm32-unknown-unknown
+          cargo binstall --no-confirm wasm-pack
+          wasm-pack build --target nodejs
+          # npx mocha tests/test_k0mmand3r.ts
+          npm ci
+          npm test
+        working-directory: rust/k0mmand3r
       ###########################
       # python
       # 😉: `maturin generate-ci github`
@@ -81,14 +73,14 @@ working-directory: rust/k0mmand3r
         with:
           python-version: '3.10'
 
-      - name: run tests 🐍 (python)
-        if: env.SKIP_TESTS == 'false'
-run: |
-           python3 -m venv ./venv
-           pip install --find-links ./dist k0mmand3r
-           # python3 -m unittest discover -s tests
-           make pytest
-working-directory: rust/k0mmand3r
+            - name: run tests 🐍 (python)
+        if: ${{ env.SKIP_TESTS == 'false' }}
+        run: |
+          python3 -m venv ./venv
+          pip install --find-links ./dist k0mmand3r
+          # python3 -m unittest discover -s tests
+          make pytest
+        working-directory: rust/k0mmand3r
       # TODO: upload the crate artifcat so we don't need to recompile.
       - name: Upload wasm artifacts
         if: env.SKIP_TESTS == 'false'
