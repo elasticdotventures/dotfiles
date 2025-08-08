@@ -396,4 +396,9 @@ just path/              # Run default recipe in path/
 - **Working directory**: Recipes default to justfile's directory, not invocation directory
 - **Path functions**: Use `{{justfile_directory()}}` not relative paths in file operations
 
-🤓 **Remember**: Just is a command runner, not a shell script. For shell logic, use shebang recipes!
+🤓 **Remember**: Just is a command runner, not a shell script. For shell logic, use shebang recipes!---
+Use toml: = `which toml || echo "toml"` variable pattern instead of hardcoding paths in justfiles
+
+---
+extract complex logic: move shell scripts with working directory issues to separate .sh files with descriptive names
+

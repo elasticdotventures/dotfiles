@@ -77,28 +77,31 @@ just --justfile litellm.just clean      # Clean up containers and files
 
 ## Environment Configuration
 
-### Security Pattern
-API keys are stored in environment variables, never hardcoded:
+### Security Pattern - direnv + .envrc (b00t Standard)
+🤓 **NEVER** hardcode API keys in justfiles! Use `.envrc` + `direnv` for secure environment variables:
 
 ```bash
-# litellm/.env (created by `just init`)
-LITELLM_MASTER_KEY=sk-b00t-dev-key-please-change-me
+# ~/.dotfiles/.envrc (gitignored, secured by direnv)
+export LITELLM_MASTER_KEY="sk-b00t-$(uuidgen | head -c 8)"
+export OPENROUTER_API_KEY="sk-or-v1-your-key-here"
+export ANTHROPIC_API_KEY="sk-ant-your-key-here"
+export OPENAI_API_KEY="sk-your-key-here"
 
-# Provider API Keys
-ANTHROPIC_API_KEY=sk-ant-...
-OPENAI_API_KEY=sk-...
-FIREWORKS_API_KEY=...
-GROQ_API_KEY=gsk_...
+# Allow direnv to load
+# $ direnv allow ~/.dotfiles
 ```
 
 ### Container Configuration
 ```bash
-# Uses podman with environment file mounting
+# b00t secure pattern: environment variables passed through
 podman run --replace --name litellm-proxy \
     --rm -d \
-    -v ./litellm/_b00t_generated.yaml:/app/config.yaml \
+    -v {{justfile_directory()}}/_b00t_generated.yaml:/app/config.yaml \
     -p 4000:4000 \
-    --env-file ./litellm/.env \
+    -e LITELLM_MASTER_KEY \
+    -e OPENROUTER_API_KEY \
+    -e ANTHROPIC_API_KEY \
+    -e OPENAI_API_KEY \
     ghcr.io/berriai/litellm:main-latest \
     --config /app/config.yaml --detailed_debug
 ```
@@ -153,26 +156,38 @@ EOF
 just --justfile litellm.just config
 ```
 
-### 3. Proxy Startup
+### 3. Environment Setup (b00t Standard)
 ```bash
-# Initialize environment (first time)
-just --justfile litellm.just init
+# Add API keys to ~/.dotfiles/.envrc (one-time setup)
+echo 'export OPENROUTER_API_KEY="sk-or-v1-your-key-here"' >> ~/.dotfiles/.envrc
+echo 'export LITELLM_MASTER_KEY="sk-b00t-$(uuidgen | head -c 8)"' >> ~/.dotfiles/.envrc
 
-# Edit API keys in litellm/.env
-# Start proxy
+# Allow direnv to load environment
+direnv allow ~/.dotfiles
+
+# Verify environment loaded
+just --justfile litellm.just init
+```
+
+### 4. Proxy Startup
+```bash
+# Start proxy (auto-generates config from datums)
 just --justfile litellm.just s
 ```
 
-### 4. Testing & Validation
+### 5. Testing & Validation
 ```bash
-# Health check
+# Health check + completion test
 just --justfile litellm.just test
 
-# Manual API test
+# Manual API test with OpenRouter model
 curl -X POST http://localhost:4000/chat/completions \
     -H "Content-Type: application/json" \
     -H "Authorization: Bearer $LITELLM_MASTER_KEY" \
-    -d '{"model": "claude-3-5-sonnet", "messages": [{"role": "user", "content": "Hello!"}]}'
+    -d '{"model": "gpt-4o-mini", "messages": [{"role": "user", "content": "Hello from b00t!"}], "max_tokens": 50}'
+
+# Python SDK test
+python3 demo_litellm_test.py
 ```
 
 ## b00t Patterns Applied
