@@ -1,6 +1,6 @@
 use anyhow::Result;
 use clap::Subcommand;
-use std::env;
+use b00t_c0re_lib::GrokClient;
 
 #[derive(Subcommand, Clone)]
 pub enum GrokCommands {
@@ -30,179 +30,92 @@ pub enum GrokCommands {
     },
 }
 
-pub fn handle_grok_command(command: GrokCommands) -> Result<()> {
+pub async fn handle_grok_command(command: GrokCommands) -> Result<()> {
+    let mut client = GrokClient::new();
+    client.initialize().await?;
+
     match command {
         GrokCommands::Digest { topic, content } => {
-            handle_digest(&topic, &content)
+            handle_digest(&client, &topic, &content).await
         }
         GrokCommands::Ask { query, topic } => {
-            handle_ask(&query, topic.as_deref())
+            handle_ask(&client, &query, topic.as_deref()).await
         }
         GrokCommands::Learn { source, content } => {
-            handle_learn(source.as_deref(), &content)
+            handle_learn(&client, source.as_deref(), &content).await
         }
     }
 }
 
-fn handle_digest(topic: &str, content: &str) -> Result<()> {
-    let qdrant_url = get_qdrant_url()?;
-    let api_key = get_qdrant_api_key()?;
+async fn handle_digest(client: &GrokClient, topic: &str, content: &str) -> Result<()> {
+    println!("🧠 Digesting content for topic '{}'...", topic);
     
-    // Create PyGrokClient and call digest
-    let python_code = format!(
-        r#"
-import json
-from b00t_grok import PyGrokClient
-
-client = PyGrokClient("{}", "{}")
-chunk_json = client.digest("{}", "{}")
-chunk = json.loads(chunk_json)
-
-print(f"✅ Digested chunk for topic '{}':")
-print(f"📄 ID: {{chunk['id']}}")
-print(f"💬 Content: {{chunk['content'][:100]}}...")
-print(f"📅 Created: {{chunk['metadata']['created_at']}}")
-"#,
-        qdrant_url,
-        api_key,
-        topic.replace('"', r#"\""#),
-        content.replace('"', r#"\""#).replace('\n', r#"\n"#),
-        topic
-    );
+    let result = client.digest(topic, content).await?;
     
-    let output = std::process::Command::new("python3")
-        .arg("-c")
-        .arg(python_code)
-        .output()?;
-    
-    if output.status.success() {
-        print!("{}", String::from_utf8_lossy(&output.stdout));
+    if result.success {
+        println!("✅ Digested chunk for topic '{}':", topic);
+        println!("📄 ID: {}", result.chunk_id);
+        println!("💬 Content: {}...", result.content_preview);
+        println!("📅 Created: {}", result.created_at);
     } else {
-        eprintln!("❌ Error: {}", String::from_utf8_lossy(&output.stderr));
+        eprintln!("❌ Digest failed: {}", result.message.unwrap_or("Unknown error".to_string()));
+        return Err(anyhow::anyhow!("Failed to digest content"));
     }
     
     Ok(())
 }
 
-fn handle_ask(query: &str, topic: Option<&str>) -> Result<()> {
-    let qdrant_url = get_qdrant_url()?;
-    let api_key = get_qdrant_api_key()?;
+async fn handle_ask(client: &GrokClient, query: &str, topic: Option<&str>) -> Result<()> {
+    println!("🔍 Searching knowledgebase for: '{}'", query);
+    if let Some(topic) = topic {
+        println!("🎯 Filtering by topic: '{}'", topic);
+    }
     
-    let python_code = format!(
-        r#"
-from b00t_grok import PyGrokClient
-
-client = PyGrokClient("{}", "{}")
-results = client.ask("{}", {})
-
-print(f"🔍 Query: '{}'")
-print(f"📊 Found {{len(results)}} results")
-
-for i, result_json in enumerate(results):
-    print(f"{{i+1}}. {{result_json[:100]}}...")
-"#,
-        qdrant_url,
-        api_key,
-        query.replace('"', r#"\""#),
-        if let Some(t) = topic {
-            format!(r#""{}""#, t.replace('"', r#"\""#))
-        } else {
-            "None".to_string()
-        },
-        query
-    );
+    let result = client.ask(query, topic, Some(10)).await?;
     
-    let output = std::process::Command::new("python3")
-        .arg("-c")
-        .arg(python_code)
-        .output()?;
-    
-    if output.status.success() {
-        print!("{}", String::from_utf8_lossy(&output.stdout));
+    if result.success {
+        println!("📊 Found {} results:", result.total_found);
+        
+        for (i, chunk) in result.results.iter().enumerate() {
+            println!("\n{}. 📄 {}", i + 1, chunk.topic);
+            println!("   💬 {}", chunk.content.chars().take(100).collect::<String>());
+            if let Some(ref source) = chunk.source {
+                println!("   🔗 Source: {}", source);
+            }
+            println!("   📅 {}", chunk.created_at);
+        }
     } else {
-        eprintln!("❌ Error: {}", String::from_utf8_lossy(&output.stderr));
+        eprintln!("❌ Search failed: {}", result.message.unwrap_or("Unknown error".to_string()));
+        return Err(anyhow::anyhow!("Failed to search knowledgebase"));
     }
     
     Ok(())
 }
 
-fn handle_learn(source: Option<&str>, content: &str) -> Result<()> {
-    let qdrant_url = get_qdrant_url()?;
-    let api_key = get_qdrant_api_key()?;
-    
+async fn handle_learn(client: &GrokClient, source: Option<&str>, content: &str) -> Result<()> {
     let source_str = source.unwrap_or("direct_input");
+    println!("📚 Learning from source: '{}'", source_str);
     
-    let python_code = format!(
-        r#"
-from b00t_grok import PyGrokClient
-
-client = PyGrokClient("{}", "{}")
-chunks = client.learn("{}", "{}")
-
-print(f"📚 Learning from source: '{}'")
-print(f"📦 Generated {{len(chunks)}} chunks")
-
-for i, chunk_json in enumerate(chunks):
-    print(f"{{i+1}}. Chunk created")
-"#,
-        qdrant_url,
-        api_key,
-        source_str.replace('"', r#"\""#),
-        content.replace('"', r#"\""#).replace('\n', r#"\n"#),
-        source_str
-    );
+    let result = client.learn(content, Some(source_str)).await?;
     
-    let python_executable = get_python_executable()?;
-    let output = std::process::Command::new(&python_executable)
-        .arg("-c")
-        .arg(python_code)
-        .output()?;
-    
-    if output.status.success() {
-        print!("{}", String::from_utf8_lossy(&output.stdout));
-    } else {
-        eprintln!("❌ Error: {}", String::from_utf8_lossy(&output.stderr));
-    }
-    
-    Ok(())
-}
-
-fn get_python_executable() -> Result<String> {
-    // 🤓 Get the correct Python executable from current environment (uv venv compatible)
-    let python_path = std::process::Command::new("python3")
-        .arg("-c")
-        .arg("import sys; print(sys.executable)")
-        .output()?
-        .stdout;
-    
-    Ok(String::from_utf8(python_path)?.trim().to_string())
-}
-
-fn get_qdrant_url() -> Result<String> {
-    // First try from _b00t_.toml session config
-    if let Ok(session_path) = env::var("PWD") {
-        let toml_path = format!("{}/.git/_b00t_.toml", session_path);
-        if let Ok(contents) = std::fs::read_to_string(toml_path) {
-            if let Ok(config) = toml::from_str::<toml::Value>(&contents) {
-                if let Some(url) = config
-                    .get("qdrant")
-                    .and_then(|q| q.get("url"))
-                    .and_then(|u| u.as_str()) {
-                    return Ok(url.to_string());
-                }
+    if result.success {
+        println!("✅ Successfully learned from '{}':", result.source);
+        println!("📦 Generated {} chunks", result.chunks_created);
+        
+        for (i, summary) in result.chunk_summaries.iter().enumerate() {
+            println!("\n{}. 📄 Topic: {}", i + 1, summary.topic);
+            println!("   💬 {}", summary.content_preview);
+            if !summary.tags.is_empty() {
+                println!("   🏷️ Tags: {}", summary.tags.join(", "));
             }
         }
+    } else {
+        eprintln!("❌ Learn failed: {}", result.message.unwrap_or("Unknown error".to_string()));
+        return Err(anyhow::anyhow!("Failed to learn from content"));
     }
     
-    // Fallback to hardcoded URL
-    // Fallback to environment variable
-    if let Ok(url) = env::var("QDRANT_URL") {
-        return Ok(url);
-    }
-    Err(anyhow::anyhow!("Qdrant URL not found in config or QDRANT_URL environment variable"))
+    Ok(())
 }
 
-fn get_qdrant_api_key() -> Result<String> {
-    env::var("QDRANT_API_KEY")
-        .map_err(|_| anyhow::anyhow!("QDRANT_API_KEY environment variable not set"))
-}
+// 🤓 Helper functions removed - configuration now handled by b00t-c0re-lib::GrokClient
+// which reads QDRANT_URL and QDRANT_API_KEY from environment variables

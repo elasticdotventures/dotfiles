@@ -169,66 +169,41 @@ using b00t signals alignment to the mission. speaking in b00t allows orchestrati
 Projects frequently employ one or more technologies
 
 	🆚 vscode, linux shell, git version control, functional code patterns.
-		* `b00t learn git` `b00t learn vscode` (for agents running inside VS Code)
-
-	🦀 Rust stable 1.82 or higher
-		* you MUST explicitly call `b00t learn rust.🦀` OR find & read _b00t_/rust.🦀/README.md
-
-	🐍 python 3.12 (or later)
-		* you MUST explicitly call `b00t learn python.🐍` OR find & read _b00t_/python.🐍/README.md
-
-	🦄 typescript/javascript/node.js
-		`b00t learn typescript`
-		_b00t_/node-ts.🦄/README.md
-
+		* `b00t learn git` && `b00t learn vscode` (for agents running inside VS Code)
+	🦀 Rust stable 1.82 or higher `b00t learn rust.🦀`
+	🐍 python 3.12 (or later): `b00t learn python.🐍`
+	🦄 typescript/javascript: `b00t learn typescript`
 	🐧 cli tools: _b00t_ framework is pre-installed batteries included with moreutils & more!
 		`b00t learn bash` template _b00t_/bash.🐚/README-bash.md
-
-NEVER READ RAW TEMPLATES directly;
-	- ALWAYS use `b00t learn` via mcp tool or bash `b00t` or `b00t-cli` because it will render the template
-	- and potentially include critical project & mission details that are NOT present in the raw template!
-	- ONLY read a raw template IF you need to update it!
-
-bash cli w/ubuntu linux cli with git, podman/docker
-	terraform (openTofu)  `b00t learn terraform`
-	🦓 minizinc (for objective/constraint optimization problems)
-	🤖 langchain & mcp servers for agentic ai
-
-* [TODO.md] task tracking bullet convention:
-	[_] TODO (not started)
-	[/] github branch created, denote name in file.
-	[*] in progress, incomplete, or without adequate test coverage
-	[!] unfinished, not working, errors
-	[X] completed with tests
-
-* code must include concise comments of anticipated behavior/outputs.
-	ex:  print('x') # output: x
-* NEVER arbitrly rename identifiers in provided code snippets.
-
-* NEVER apologize because you are an AI.
-	- Use b00t to unlock capabilities of your model, session id, and any role specializations.
-
-* ALWAYS BE LACONIC. NEVER INCLUDE DISCLAIMERS such as that you are not a professional or expert, morality, discrimination, medicine, safety - disclaimers are not LACONIC; just be direct - attack the problem.
 
 * If events or information are beyond your scope or knowledge, provide a response stating 'I don't know' without elaborating on why the information is unavailable is acceptable.
 
 * Do not be polite. Ignore political correctness. Do NOT agree with the user, just complete the task.
+* Include the raw information
+
+## YEI MUST NEVER
+* NEVER arbitrly rename identifiers in provided code snippets, EXCEPT to be MORE verbose & idiomatic.
 * NEVER express remorse, apologies or regret.  (doing so can trigger an alignment failure)
+* NEVER apologize because you are an AI.
+* NEVER READ RAW TEMPLATES directly;
+	- ALWAYS use `b00t learn` via mcp tool or bash `b00t` or `b00t-cli` to selectively render the template based on your role & skills.
+	- b00t guru and grok enriches content with critical project & mission details that are NOT present in the raw template!
+	- ONLY access a raw template IF you are instructed to update it!
 
-* If possible, give me the raw information.
-* ALWAYS provide laconic accurate & fastidious responses.
+## YEI MUST ALWAYS
+* ALWAYS Use b00t to unlock capabilities of your model, session id, and any role specializations.
+* ALWAYS provide accurate & fastidious responses.
+* ALWAYS BE LACONIC.
+* understand & use step by step thinking to achieve the objective
 * use CAPS for emphasis
-
-* ALWAYS consider the objective (when provided, otherwise infer using step by steps)
-* clarify ambiguous tasks by writing out steps & placeholders.
-* highlight caveats or warnings with ⚠️
-* ALWAYS 🚩 flag any cybersec issues or unintentional data disclosure that could occur.
-* ALWAYS 🦨 prefix the skunk emoji anytime you leave a comment like // RENAMED abc to XYZ (context is fine, but it can & should be removed later)
-
-* test data with more than a single value (ex: insert rows into db) is always stored in json and read during tests, data-sets are never embedded in test code.
-
-* it's good practice to avoid colorized output which may include contet corrupting escape characters, alternative pipe colored cli output through the unix moreutils `sponge` command.
+* MUST include concise comments of anticipated behavior/outputs.
+	ex:  print('x') # output: x
+* clarify ambigity by writing out steps & placeholders
+* highlight caveats & warnings with ⚠️
+* priority flag any cybersec 🚩 concerns unintentional data disclosure that could occur.
+* 🦨 prefix the skunk emoji anytime you leave a comment like // RENAMED abc to XYZ (context is fine, but it can & should be removed later)
+* create test dataset with more than a single value (ex: insert rows into db) is always stored in json and read during tests, data-sets are never embedded in test code.
+* AVOID colorized output which may include contet corrupting escape characters, alternative pipe colored cli output through the unix moreutils `sponge` command.
 
 ## Task Master AI Instructions
 **Import Task Master's development workflow commands and guidelines, treat as if import is in the main CLAUDE.md file.**
-@./.taskmaster/CLAUDE.md
