@@ -139,7 +139,7 @@ install-tool TOOL:
 
 # Qdrant vector database
 qdrant-run:
-    podman run -d --name qdrant-container -p 6333:6333 docker.io/qdrant/qdrant:latest
+    podman run -d --name qdrant-container -p 6333:6333 -p 6334:6334 -e QDRANT__SERVICE__GRPC_PORT="6334" docker.io/qdrant/qdrant:latest
 
 qdrant-stop:
     podman stop qdrant-container && podman rm qdrant-container

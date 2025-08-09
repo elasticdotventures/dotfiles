@@ -28,11 +28,11 @@ async def lifespan(app: FastAPI):
     global guru
     
     # Startup
-    qdrant_url = os.getenv(
-        "QDRANT_URL",
-        "https://a0cfd978-2e95-499c-93cc-9acd66b16d35.us-west-1-0.aws.cloud.qdrant.io:6333"
-    )
-    api_key = os.getenv("QDRANT_API_KEY", "dummy-key")
+    qdrant_url = os.getenv("QDRANT_URL")
+    if not qdrant_url:
+        raise ValueError("QDRANT_URL environment variable required")
+    
+    api_key = os.getenv("QDRANT_API_KEY", "")
     
     guru = GrokGuru(qdrant_url=qdrant_url, api_key=api_key)
     await guru.initialize()
