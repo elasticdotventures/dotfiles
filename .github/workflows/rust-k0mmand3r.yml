@@ -56,6 +56,8 @@ jobs:
           command: build
           args: --release --out dist --features lang-python
           working-directory: ${{ env.PROJECT_ROOT }}
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
       - name: python setup 🐍
         uses: actions/setup-python@v4
         with:
@@ -63,9 +65,9 @@ jobs:
       - name: run tests 🐍 (python)
         if: ${{ env.SKIP_TESTS == 'false' }}
         run: |
-          python3 -m venv ./venv
-          pip install --find-links ./dist k0mmand3r
-          # python3 -m unittest discover -s tests
+          uv venv ./venv
+          source ./venv/bin/activate
+          uv pip install --find-links ./dist k0mmand3r
           make pytest
         working-directory: k0mmand3r
       # TODO: upload the crate artifcat so we don't need to recompile.
