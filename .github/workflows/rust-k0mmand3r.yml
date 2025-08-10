@@ -6,7 +6,7 @@ on:
   pull_request:
     branches: [main]
 env:
-  PROJECT_ROOT: rust/k0mmand3r
+  PROJECT_ROOT: k0mmand3r
   SKIP_TESTS: false
 jobs:
   run-tests:
@@ -25,7 +25,7 @@ jobs:
       - name: run tests 🦀
         if: ${{ env.SKIP_TESTS == 'false' }}
         run: cargo test --all-features
-        working-directory: rust/k0mmand3r
+        working-directory: k0mmand3r
       # typescript      ###########################
       # https://github.com/actions/setup-node
       - uses: actions/setup-node@v4
@@ -44,7 +44,7 @@ jobs:
           # npx mocha tests/test_k0mmand3r.ts
           npm ci
           npm test
-        working-directory: rust/k0mmand3r
+        working-directory: k0mmand3r
       ###########################
       # python
       # 😉: `maturin generate-ci github`
@@ -67,7 +67,7 @@ jobs:
           pip install --find-links ./dist k0mmand3r
           # python3 -m unittest discover -s tests
           make pytest
-        working-directory: rust/k0mmand3r
+        working-directory: k0mmand3r
       # TODO: upload the crate artifcat so we don't need to recompile.
       - name: Upload wasm artifacts
         if: env.SKIP_TESTS == 'false'
@@ -118,7 +118,7 @@ jobs:
         with:
           cwd: ${{ env.PROJECT_ROOT }}
           command: build
-          args: --manifest-path rust/k0mmand3r/Cargo.toml --release --all-features
+          args: --manifest-path k0mmand3r/Cargo.toml --release --all-features
       # https://github.com/marketplace/actions/publish-crates
       # https://github.com/katyo/publish-crates
       - uses: katyo/publish-crates@v2
