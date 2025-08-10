@@ -172,6 +172,11 @@ The system will:
         #[clap(subcommand)]
         cli_command: CliCommands,
     },
+    #[clap(about = "Execute RHAI scripts with b00t context")]
+    Script {
+        #[clap(subcommand)]
+        script_command: commands::script::ScriptCommands,
+    },
     #[clap(about = "Initialize system settings and aliases")]
     Init {
         #[clap(subcommand)]
@@ -1218,6 +1223,14 @@ fn main() {
             };
 
             if let Err(e) = rt.block_on(handle_advice(&cli.path, tool, query, *count)) {
+                eprintln!("Error: {}", e);
+                std::process::exit(1);
+            }
+        }
+        Some(Commands::Script { script_command }) => {
+            use crate::commands::script::handle_script_command;
+            
+            if let Err(e) = handle_script_command(script_command.clone()) {
                 eprintln!("Error: {}", e);
                 std::process::exit(1);
             }
