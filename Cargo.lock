@@ -289,6 +289,7 @@ dependencies = [
  "chrono",
  "dirs",
  "duct",
+ "pyo3",
  "redis",
  "regex",
  "rmcp",
@@ -379,6 +380,19 @@ dependencies = [
  "tower 0.5.2",
  "tower-http",
  "tracing",
+]
+
+[[package]]
+name = "b00t-py"
+version = "0.7.0"
+dependencies = [
+ "anyhow",
+ "b00t-c0re-lib",
+ "b00t-cli",
+ "pyo3",
+ "pyo3-build-config",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
