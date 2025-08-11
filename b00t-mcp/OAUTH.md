@@ -13,7 +13,9 @@ cargo run --release -p b00t-mcp -- --http --port 8080
 - MCP: `http://127.0.0.1:8080/mcp`
 - OAuth Discovery: `http://127.0.0.1:8080/.well-known/oauth-authorization-server`
 
-## OAuth 2.1 Flow
+## OAuth 2.1 Flow with GitHub Authentication
+
+The b00t-mcp server now uses **GitHub OAuth** for user authentication. Users must authenticate with GitHub before accessing b00t tools through the MCP server.
 
 ### Step 1: Discovery (Optional)
 
@@ -49,18 +51,28 @@ http://127.0.0.1:8080/oauth/authorize?client_id=b00t-mcp-client&redirect_uri=htt
 - `state`: Random string for security
 - `response_type`: Must be `code`
 
-### Step 3: User Consent
+### Step 3: GitHub Authentication
 
-User sees consent form and clicks **"✅ Allow Access"** or **"❌ Deny Access"**.
+If the user is not authenticated, they will be redirected to GitHub OAuth:
+1. User clicks "Login with GitHub"
+2. Redirected to `https://github.com/login/oauth/authorize`
+3. User authorizes the application
+4. GitHub redirects back to b00t-mcp with authorization code
+5. b00t-mcp exchanges code for GitHub user information
+6. User session is created with GitHub user data
 
-### Step 4: Authorization Code
+### Step 4: User Consent
+
+After GitHub authentication, user sees consent form with their GitHub profile and clicks **"✅ Allow Access"** or **"❌ Deny Access"**.
+
+### Step 5: Authorization Code
 
 On approval, user redirected to:
 ```
 https://claude.ai/oauth/callback?code=AUTHORIZATION_CODE&state=random123
 ```
 
-### Step 5: Token Exchange
+### Step 6: Token Exchange
 
 Exchange authorization code for access token:
 
@@ -82,7 +94,7 @@ Response:
 }
 ```
 
-### Step 6: Use Access Token
+### Step 7: Use Access Token
 
 Include token in MCP requests:
 ```bash
@@ -121,9 +133,18 @@ Configure Claude with:
 
 ### Manual Testing with curl
 
+🔧 **Environment Setup**:
+First, set up GitHub OAuth app credentials in environment variables:
+```bash
+export GITHUB_CLIENT_ID="your_github_app_client_id"
+export GITHUB_CLIENT_SECRET="your_github_app_client_secret"
+```
+
 1. **Get authorization code** (browser):
    - Visit: `http://127.0.0.1:8080/oauth/authorize?client_id=b00t-mcp-client&redirect_uri=http://localhost&state=test123&response_type=code`
-   - Click "Allow Access"
+   - You'll be redirected to GitHub login if not authenticated
+   - Authorize the GitHub application
+   - Click "Allow Access" on the consent form  
    - Copy code from redirect URL
 
 2. **Exchange for token**:
@@ -142,8 +163,8 @@ curl http://127.0.0.1:8080/mcp \
 
 🔐 **Current Implementation**:
 - JWT tokens with 1-hour expiration
-- Simple consent flow
-- Single-user system ("user123")
+- GitHub OAuth authentication
+- Multi-user system with GitHub profile data
 - In-memory session storage
 
 ⚠️ **Production Considerations**:

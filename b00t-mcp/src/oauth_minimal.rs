@@ -16,6 +16,9 @@ use std::{
 };
 use uuid::Uuid;
 
+use crate::github_auth::{GitHubAuthState, GitHubUser, require_github_auth, github_login_url};
+use crate::acl::AclConfig;
+
 // Minimal OAuth configuration for MVP
 #[derive(Clone)]
 pub struct MinimalOAuthConfig {
@@ -36,19 +39,43 @@ impl Default for MinimalOAuthConfig {
     }
 }
 
-// Simple auth session storage
+// OAuth state with GitHub authentication
 #[derive(Clone)]
 pub struct MinimalOAuthState {
     pub config: MinimalOAuthConfig,
-    pub sessions: Arc<RwLock<HashMap<String, String>>>, // session_id -> user_data
+    pub sessions: Arc<RwLock<HashMap<String, String>>>, // session_id -> user_data  
+    pub github_auth: GitHubAuthState,
+    pub acl_config: Option<AclConfig>,
 }
 
 impl MinimalOAuthState {
-    pub fn new(config: MinimalOAuthConfig) -> Self {
+    pub fn new(config: MinimalOAuthConfig, github_auth: GitHubAuthState) -> Self {
         Self {
             config,
             sessions: Arc::new(RwLock::new(HashMap::new())),
+            github_auth,
+            acl_config: None,
         }
+    }
+
+    pub fn with_acl_config(mut self, acl_config: Option<AclConfig>) -> Self {
+        self.acl_config = acl_config;
+        self
+    }
+
+    fn should_bypass_oauth(&self) -> bool {
+        self.acl_config.as_ref()
+            .and_then(|config| config.dev.as_ref())
+            .and_then(|dev| dev.bypass_oauth)
+            .unwrap_or(false)
+    }
+
+    fn get_local_user(&self) -> String {
+        self.acl_config.as_ref()
+            .and_then(|config| config.dev.as_ref())
+            .and_then(|dev| dev.local_user.as_ref())
+            .cloned()
+            .unwrap_or_else(|| "local-dev".to_string())
     }
 
     pub fn generate_access_token(&self, user_id: &str) -> Result<String> {
@@ -132,24 +159,62 @@ async fn discovery_handler(State(state): State<MinimalOAuthState>) -> Json<serde
     }))
 }
 
-// Authorization endpoint  
+// Authorization endpoint with GitHub authentication
 async fn authorize_handler(
     State(state): State<MinimalOAuthState>,
     Query(req): Query<AuthRequest>,
+    Query(params): Query<HashMap<String, String>>,
 ) -> Result<Redirect, (StatusCode, String)> {
     // Validate client ID
     if req.client_id != state.config.client_id {
         return Err((StatusCode::BAD_REQUEST, "Invalid client_id".to_string()));
     }
 
-    // Create session
-    let session_id = Uuid::new_v4().to_string();
-    let redirect_data = format!("{}|{}", req.redirect_uri, req.state.unwrap_or_default());
-    
-    state.sessions.write().unwrap().insert(session_id.clone(), redirect_data);
+    // Check for OAuth bypass in development
+    if state.should_bypass_oauth() {
+        eprintln!("🚧 DEV MODE: Bypassing OAuth authentication");
+        let oauth_session_id = Uuid::new_v4().to_string();
+        let local_user = state.get_local_user();
+        let redirect_data = format!("{}|{}|dev:{}", 
+            req.redirect_uri, 
+            req.state.unwrap_or_default(),
+            local_user
+        );
+        
+        state.sessions.write().unwrap().insert(oauth_session_id.clone(), redirect_data);
+        
+        // Redirect to consent with bypass indication
+        return Ok(Redirect::to(&format!("/oauth/consent?session_id={}&dev_bypass=true", oauth_session_id)));
+    }
 
-    // Redirect to consent
-    Ok(Redirect::to(&format!("/oauth/consent?session_id={}", session_id)))
+    // Check if user is authenticated via GitHub
+    let session_id = params.get("session");
+    match require_github_auth(&state.github_auth, session_id.map(String::as_str)).await {
+        Ok(_user) => {
+            // User is authenticated, proceed with OAuth consent
+            let oauth_session_id = Uuid::new_v4().to_string();
+            let redirect_data = format!("{}|{}|{}", 
+                req.redirect_uri, 
+                req.state.unwrap_or_default(),
+                session_id.unwrap_or(&"".to_string())
+            );
+            
+            state.sessions.write().unwrap().insert(oauth_session_id.clone(), redirect_data);
+            
+            // Redirect to consent
+            Ok(Redirect::to(&format!("/oauth/consent?session_id={}", oauth_session_id)))
+        }
+        Err(_) => {
+            // User not authenticated, redirect to GitHub login
+            let return_url = format!("/oauth/authorize?client_id={}&redirect_uri={}&state={}&response_type=code",
+                urlencoding::encode(&req.client_id),
+                urlencoding::encode(&req.redirect_uri),
+                urlencoding::encode(&req.state.unwrap_or_default())
+            );
+            let login_url = github_login_url("http://127.0.0.1:8080", &return_url);
+            Ok(Redirect::to(&login_url))
+        }
+    }
 }
 
 // Consent form
@@ -157,6 +222,13 @@ async fn consent_form_handler(
     Query(params): Query<HashMap<String, String>>,
 ) -> Html<String> {
     let session_id = params.get("session_id").cloned().unwrap_or_default();
+    let is_dev_bypass = params.get("dev_bypass").is_some();
+    
+    let auth_status = if is_dev_bypass {
+        "<p style=\"color: #ff9800;\">🚧 <strong>Development Mode</strong> - OAuth bypassed for local testing</p>"
+    } else {
+        "<p>Authenticated via GitHub OAuth</p>"
+    };
     
     let html = format!(r#"
 <!DOCTYPE html>
@@ -175,6 +247,7 @@ async fn consent_form_handler(
     <div class="container">
         <h2>🥾 b00t-mcp Authorization</h2>
         <p>Claude is requesting access to your b00t tools.</p>
+        {}
         
         <form method="post" action="/oauth/consent">
             <input type="hidden" name="session_id" value="{}" />
@@ -188,7 +261,7 @@ async fn consent_form_handler(
     </div>
 </body>
 </html>
-    "#, session_id);
+    "#, auth_status, session_id);
 
     Html(html)
 }
@@ -220,8 +293,23 @@ async fn consent_post_handler(
     // Generate authorization code
     let auth_code = URL_SAFE_NO_PAD.encode(Uuid::new_v4().as_bytes());
     
-    // Store code for token exchange (reuse sessions map)
-    sessions.insert(auth_code.clone(), "user123".to_string());
+    // Get user ID from session (either GitHub or dev bypass)
+    let session_info = parts.get(2).unwrap_or(&"");
+    let user_id = if session_info.starts_with("dev:") {
+        // Development mode bypass
+        session_info.to_string()
+    } else if !session_info.is_empty() {
+        // GitHub authentication
+        match state.github_auth.get_user_from_session(session_info) {
+            Some(user) => format!("github:{}", user.login),
+            None => return Err((StatusCode::INTERNAL_SERVER_ERROR, "GitHub session expired".to_string())),
+        }
+    } else {
+        return Err((StatusCode::INTERNAL_SERVER_ERROR, "Missing authentication session".to_string()));
+    };
+    
+    // Store code for token exchange with real GitHub user ID
+    sessions.insert(auth_code.clone(), user_id);
 
     let url = format!("{}?code={}&state={}", redirect_uri, auth_code, state_param);
     Ok(Redirect::to(&url))
