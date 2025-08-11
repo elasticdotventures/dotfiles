@@ -12,7 +12,7 @@ use tower_http::cors::CorsLayer;
 use axum::Router;
 use tokio::net::TcpListener;
 
-use b00t_mcp::B00tMcpServerRusty;
+use b00t_mcp::{B00tMcpServerRusty, MinimalOAuthConfig, MinimalOAuthState, minimal_oauth_router};
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -117,15 +117,25 @@ async fn main() -> Result<()> {
                 http_config,
             );
         
-        // Create axum router with CORS
+        // Create minimal OAuth state  
+        let oauth_config = MinimalOAuthConfig::default();
+        let oauth_state = MinimalOAuthState::new(oauth_config);
+        
+        // Create axum router with CORS and OAuth
         let app = Router::new()
             .nest_service("/mcp", service)
+            .merge(minimal_oauth_router(oauth_state))
             .layer(CorsLayer::permissive());
 
         // Start HTTP server
         let listener = TcpListener::bind(addr).await?;
         eprintln!("🚀 HTTP server listening on {}", addr);
         eprintln!("📍 MCP endpoint available at: http://{}/mcp", addr);
+        eprintln!("🔐 OAuth endpoints:");
+        eprintln!("    Authorization: http://{}/.well-known/oauth-authorization-server", addr);
+        eprintln!("    Register: http://{}/oauth/register", addr);
+        eprintln!("    Authorize: http://{}/oauth/authorize", addr);
+        eprintln!("    Token: http://{}/oauth/token", addr);
         
         axum::serve(listener, app).await?;
     } else {
