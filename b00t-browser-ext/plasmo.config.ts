@@ -6,7 +6,8 @@ const config: PlasmoConfig = {
       "activeTab",
       "webRequest", 
       "storage",
-      "tabs"
+      "tabs",
+      "tabCapture"
     ],
     host_permissions: [
       "<all_urls>"
