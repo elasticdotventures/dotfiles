@@ -166,3 +166,14 @@ grok-clean:
     echo "🧹 Cleaning b00t-grok build artifacts..."
     cargo clean --package b00t-grok
     cd b00t-grok-py && rm -rf build/ dist/ *.egg-info/
+
+# Validate MCP TOML files against schema
+validate-mcp:
+    #!/bin/bash
+    echo "🔍 Validating MCP TOML files..."
+    cd {{repo-root}}/_b00t_
+    taplo lint --schema file://$PWD/schema-资源/mcp.json *.mcp.toml
+
+socks5:
+    docker run -d -p 1080:1080   -v ./koblas.toml:/etc/koblas/config.toml   -e RUST_LOG=debug   -e KOBLAS_NO_AUTHENTICATION=true   -e KOBLAS_ANONYMIZE=false   --name koblas docker.io/ynuwenhof/koblas:latest
+
