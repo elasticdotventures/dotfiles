@@ -36,7 +36,7 @@ if [ -f ~/.dotfiles/_b00t_/_b00t_.bashrc ] ; then
     fi
      ## Agent detection handled at top of .bash_profile (single source of truth)
 
-    echo "/🥾"
+    #echo "/🥾"
 fi
 
 
