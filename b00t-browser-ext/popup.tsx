@@ -112,6 +112,38 @@ function IndexPopup() {
         </div>
       </div>
 
+      <div style={{ marginTop: 16 }}>
+        <h3>NATS Connection</h3>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <div
+            style={{
+              width: 10,
+              height: 10,
+              borderRadius: "50%",
+              backgroundColor: stats.nats?.connected ? "#10b981" : "#ef4444"
+            }}
+          />
+          <span style={{ fontSize: 14 }}>
+            {stats.nats?.connected ? "Connected" : "Discovering server..."}
+          </span>
+        </div>
+        {stats.nats?.serverUrl && (
+          <div style={{ fontSize: 12, color: "#6b7280", marginTop: 4 }}>
+            Server: {new URL(stats.nats.serverUrl).host}
+          </div>
+        )}
+        {stats.nats?.operatorId && (
+          <div style={{ fontSize: 12, color: "#6b7280", marginTop: 2 }}>
+            Operator: {stats.nats.operatorId.slice(0, 16)}...
+          </div>
+        )}
+        {stats.nats?.extensionId && (
+          <div style={{ fontSize: 12, color: "#6b7280" }}>
+            Extension: {stats.nats.extensionId.slice(0, 16)}...
+          </div>
+        )}
+      </div>
+
       <div style={{ marginTop: 16, display: "flex", gap: 8, flexDirection: "column" }}>
         <button
           style={{
@@ -156,7 +188,7 @@ function IndexPopup() {
       )}
 
       <div style={{ marginTop: 16, fontSize: 10, color: "#9ca3af", textAlign: "center" }}>
-        Phase 2: DOM Analysis • Network Monitoring • Visual Snapshots
+        Phase 2b Complete: DOM Analysis • Network Monitoring • Visual Snapshots • NATS Command/Control
       </div>
     </div>
   )

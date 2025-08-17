@@ -198,10 +198,40 @@ npm run package              # Create ZIP for distribution
 - **Release Process**: Git tags trigger GitHub releases
 - **Build Artifacts**: Available for 90 days for testing
 
+### 🔗 Phase 2b: NATS.io Command & Control Integration (COMPLETE)
+- **Real-time Bidirectional Communication**: WebSocket connection to b00t-website backend
+- **Command/Response Messaging**: Remote browser extension control via NATS.io
+- **Extension Discovery**: Automatic registration and heartbeat monitoring
+- **Operator-specific Targeting**: Commands routed to specific operator extensions
+- **Backend Integration**: Cloudflare Workers with NATS handler for message routing
+- **Dashboard Control Interface**: API endpoints for browser extension management
+
+**NATS Integration Features:**
+- WebSocket NATS client with automatic reconnection
+- Command handlers: screenshot capture, telemetry export, site authorization, data management
+- Heartbeat system with 5-minute TTL for extension status tracking
+- Correlation ID system for request/response matching
+- Error handling and timeout management (15-second command timeout)
+- Extension identification with unique operator and extension IDs
+
+**Command Types Supported:**
+- `capture_screenshot`: Trigger screenshot capture on active tab
+- `get_telemetry`: Export all captured telemetry data  
+- `authorize_site`: Authorize extension for specific domain
+- `clear_data`: Reset all extension storage
+- `export_data`: Export complete extension data for analysis
+
+**Backend API Endpoints:**
+- `GET /api/browser-extensions` - List active extensions
+- `POST /api/browser-extensions/{operatorId}/command` - Send command to extension
+- `GET /api/commands/{commandId}/response` - Retrieve command responses
+- `GET /api/browser-extensions/ws` - WebSocket connection info
+
 ## Current Status
 
 - ✅ **Phase 1 Complete**: Foundation, permissions, basic capture
 - ✅ **Phase 2 Complete**: Enhanced DOM, network monitoring, visual snapshots  
+- ✅ **Phase 2b Complete**: NATS.io integration with b00t-website backend
 - 🟡 **Phase 3 Planned**: MCP integration and b00t agent relay
 - 🔴 **Phase 4 Planned**: Real-time agent communication and feedback
 - 🔴 **Phase 5 Planned**: Machine learning and predictive capabilities

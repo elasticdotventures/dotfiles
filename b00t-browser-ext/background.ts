@@ -1,8 +1,16 @@
-// b00t Browser Extension - Background Script
-// Handles network monitoring and extension management
+// b00t Browser Extension - Background Script  
+// Handles network monitoring, extension management, and NATS.io integration
+
+import { natsClient } from "./nats-client"
 
 chrome.runtime.onInstalled.addListener(() => {
   console.log("🥾 b00t browser extension installed")
+  
+  // Initialize NATS connection
+  setTimeout(() => {
+    console.log("🥾 b00t: Initializing NATS connection...")
+    // NATS client auto-connects on instantiation
+  }, 2000) // Wait 2 seconds for extension to fully load
 })
 
 // Enhanced network request monitoring (MV3 compatible)
@@ -182,7 +190,13 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       sendResponse({
         events: result.b00t_events || [],
         networkEvents: result.b00t_network_events || [],
-        screenshots: result.b00t_screenshots || []
+        screenshots: result.b00t_screenshots || [],
+        nats: {
+          connected: natsClient.isConnected(),
+          operatorId: natsClient.getOperatorId(),
+          extensionId: natsClient.getExtensionId(),
+          serverUrl: natsClient.getServerUrl()
+        }
       })
     })
     return true // Keep message channel open for async response
