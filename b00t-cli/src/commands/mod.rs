@@ -7,6 +7,12 @@ pub mod init;
 pub mod session;
 pub mod whatismy;
 pub mod learn;
+pub mod lfmf;
+pub mod advice;
+pub mod tiktoken;
+pub mod grok;
+pub mod script;
+pub mod acp;
 
 pub use mcp::McpCommands;
 pub use k8s::K8sCommands;
@@ -16,3 +22,5 @@ pub use cli_cmd::CliCommands;
 pub use init::InitCommands;
 pub use session::SessionCommands;
 pub use whatismy::WhatismyCommands;
+pub use grok::GrokCommands;
+pub use acp::AcpCommands;

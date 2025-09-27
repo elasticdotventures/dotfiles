@@ -1,0 +1,15 @@
+[b00t]
+name = "grok-guru"
+type = "mcp"
+hint = "b00t grok RAG knowledgebase with vector search capabilities (with pre-commit validation)"
+
+[[b00t.mcp.stdio]]
+command = "uv"
+args = ["run", "python", "-m", "b00t_grok_guru.server"]
+transport = "stdio"
+priority = 0
+requires = ["python"]
+
+[b00t.env]
+QDRANT_URL = "https://a0cfd978-2e95-499c-93cc-9acd66b16d35.us-west-1-0.aws.cloud.qdrant.io:6333"
+QDRANT_API_KEY = ""

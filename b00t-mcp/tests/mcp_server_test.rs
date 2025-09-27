@@ -1,4 +1,4 @@
-use b00t_mcp::{mcp_server::B00tMcpServer, params::{DetectParams, StatusParams}};
+use b00t_mcp::{B00tMcpServerRusty, DetectParams, StatusParams};
 use rmcp::handler::server::ServerHandler;
 
 #[test]
@@ -17,8 +17,8 @@ status = { policy = "allow" }
 
     let config_path_str = config_path.to_str().unwrap();
 
-    // Test server creation
-    let server = B00tMcpServer::new(".", config_path_str);
+    // Test server creation with new rusty server
+    let server = B00tMcpServerRusty::new(".", config_path_str);
     match &server {
         Ok(_) => {},
         Err(e) => {
@@ -30,8 +30,10 @@ status = { policy = "allow" }
     // Test server info
     let server = server.unwrap();
     let info = server.get_info();
-    assert_eq!(info.protocol_version, rmcp::model::ProtocolVersion::V_2024_11_05);
+    assert_eq!(info.protocol_version, rmcp::model::ProtocolVersion::default());
     assert!(info.capabilities.tools.is_some());
+    // 🦀 Test resources support 
+    assert!(info.capabilities.resources.is_some());
 
     // Clean up
     std::fs::remove_file(&config_path).ok();
@@ -55,6 +57,20 @@ fn test_parameter_struct_creation() {
     assert!(!status_params.verbose);
     assert!(status_params.detailed);
 }
+
+#[test]
+fn test_lfmf_command_creates_lesson() {
+use b00t_c0re_lib::learn::record_lesson;
+use std::fs;
+let temp_dir = tempfile::tempdir().unwrap();
+let temp_path = temp_dir.path();
+let tool = "mcp_testtool";
+let lesson = "Lesson from MCP.";
+let _ = record_lesson(temp_path.to_str().unwrap(), tool, lesson);
+let file_path = temp_path.join("learn").join(format!("{}.md", tool));
+assert!(file_path.exists());
+let content = fs::read_to_string(&file_path).unwrap();
+assert!(content.contains(lesson));}
 
 #[test]
 fn test_json_schema_generation() {

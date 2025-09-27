@@ -12,12 +12,12 @@ use tower_http::cors::CorsLayer;
 use axum::Router;
 use tokio::net::TcpListener;
 
-use b00t_mcp::B00tMcpServerRusty;
+use b00t_mcp::{B00tMcpServerRusty, MinimalOAuthConfig, MinimalOAuthState, minimal_oauth_router, GitHubAuthConfig, GitHubAuthState, github_auth_router};
 
 #[tokio::main]
 async fn main() -> Result<()> {
     let matches = Command::new("b00t-mcp")
-        .version(env!("GIT_REPO_TAG_VERSION"))
+        .version(b00t_c0re_lib::version::VERSION)
         .author("b00t-mcp contributors")
         .about("MCP Server for b00t-cli command proxy with ACL filtering")
         .arg(
@@ -117,20 +117,57 @@ async fn main() -> Result<()> {
                 http_config,
             );
         
-        // Create axum router with CORS
+        // Load ACL config for development settings
+        let acl_config = match b00t_mcp::acl::AclFilter::load_from_file(&config_path) {
+            Ok(filter) => Some(filter.config().clone()),
+            Err(_) => {
+                eprintln!("⚠️  No ACL config found at {}, using defaults", config_path);
+                None
+            }
+        };
+
+        // Check for development mode bypass
+        if let Some(ref config) = acl_config {
+            if let Some(ref dev) = config.dev {
+                if dev.bypass_oauth.unwrap_or(false) {
+                    eprintln!("🚧 DEV MODE: OAuth bypass enabled in ACL config");
+                    eprintln!("    Local user: {}", dev.local_user.as_ref().unwrap_or(&"local-dev".to_string()));
+                }
+            }
+        }
+        
+        // Create GitHub auth state
+        let github_config = GitHubAuthConfig::default();
+        let github_state = GitHubAuthState::new(github_config);
+        
+        // Create minimal OAuth state with GitHub auth and ACL config
+        let oauth_config = MinimalOAuthConfig::default();
+        let oauth_state = MinimalOAuthState::new(oauth_config, github_state.clone())
+            .with_acl_config(acl_config);
+        
+        // Create axum router with CORS, OAuth, and GitHub auth
         let app = Router::new()
             .nest_service("/mcp", service)
+            .merge(minimal_oauth_router(oauth_state))
+            .merge(github_auth_router(github_state))
             .layer(CorsLayer::permissive());
 
         // Start HTTP server
         let listener = TcpListener::bind(addr).await?;
         eprintln!("🚀 HTTP server listening on {}", addr);
         eprintln!("📍 MCP endpoint available at: http://{}/mcp", addr);
+        eprintln!("🔐 OAuth endpoints:");
+        eprintln!("    Discovery: http://{}/.well-known/oauth-authorization-server", addr);
+        eprintln!("    Authorize: http://{}/oauth/authorize", addr);
+        eprintln!("    Token: http://{}/oauth/token", addr);
+        eprintln!("🐙 GitHub Auth endpoints:");
+        eprintln!("    Login: http://{}/auth/github", addr);
+        eprintln!("    Callback: http://{}/auth/github/callback", addr);
         
         axum::serve(listener, app).await?;
     } else {
         // Show usage information
-        println!("b00t-mcp v{}", env!("CARGO_PKG_VERSION"));
+        println!("b00t-mcp v{}", b00t_c0re_lib::version::VERSION);
         println!("MCP Server for b00t-cli command proxy with ACL filtering");
         println!();
         println!("Usage:");

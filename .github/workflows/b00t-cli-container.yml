@@ -31,6 +31,12 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Set up Just command runner
+        uses: extractions/setup-just@v1
+
+      - name: Run just --list
+        run: just --list
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -41,10 +47,10 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Extract version from Cargo.toml
+      - name: Extract version from workspace Cargo.toml
         id: version
         run: |
-          VERSION=$(grep '^version =' b00t-cli/Cargo.toml | head -1 | cut -d'"' -f2)
+          VERSION=$(grep '^version =' b00t-c0re-lib/Cargo.toml | head -1 | cut -d'"' -f2)
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
       - name: Extract Docker metadata

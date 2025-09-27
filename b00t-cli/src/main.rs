@@ -25,6 +25,8 @@ mod session_memory;
 mod traits;
 mod utils;
 mod whoami;
+mod cloud_sync;
+mod test_cloud_integration;
 use utils::get_workspace_root;
 
 // 🦨 REMOVED unused K8sDatum import - not used in main.rs
@@ -37,7 +39,7 @@ use datum_mcp::McpDatum;
 use datum_vscode::VscodeDatum;
 use traits::*;
 
-use crate::commands::{AiCommands, AppCommands, CliCommands, InitCommands, K8sCommands, McpCommands, SessionCommands, WhatismyCommands};
+use crate::commands::{AcpCommands, AiCommands, AppCommands, CliCommands, GrokCommands, InitCommands, K8sCommands, McpCommands, SessionCommands, WhatismyCommands};
 use crate::commands::learn::handle_learn;
 
 // Re-export commonly used functions for datum modules
@@ -46,7 +48,7 @@ pub use b00t_cli::{get_config, get_expanded_path, get_mcp_config, get_mcp_toml_f
 mod integration_tests;
 
 #[derive(Parser)]
-#[clap(version = env!("GIT_REPO_TAG_VERSION"), about, long_about = None)]
+#[clap(version = b00t_c0re_lib::version::VERSION, about, long_about = None)]
 struct Cli {
     #[clap(subcommand)]
     command: Option<Commands>,
@@ -61,6 +63,97 @@ struct Cli {
 
 #[derive(Parser)]
 enum Commands {
+    #[clap(
+        about = "Count tokens in a string using tiktoken",
+        long_about = r#"
+Count tokens in a string using OpenAI's tiktoken tokenizer.
+
+Usage:
+  b00t-cli tiktoken "your text here"
+
+Example:
+  b00t-cli tiktoken "This is a test sentence."
+  # Output: Token count: 7
+"#
+    )]
+    Tiktoken {
+        #[clap(help = "Text to tokenize")]
+        text: String,
+    },
+    #[clap(
+        about = "Record a lesson learned for a tool",
+        long_about = r#"
+lfmf is a dynamic, opinionated man-page for any tool with a b00t datum (TOML, learn/ dir, etc).
+It memoizes operator-informed tips, tricks, and anti-patterns—never repo-specific, always tool wisdom.
+Each entry is a <25 token topic and <250 token body, written in a positive, laconic, affirmative style.
+Use lfmf to help the hive avoid repeating mistakes and accelerate mastery.
+Good entries separate neophyte from master. Bad entries are vague, negative, or repo-specific.
+
+Usage:
+  b00t-cli lfmf <tool> "<topic>: <body>"
+
+Examples:
+  # Good
+  b00t-cli lfmf just "modules & workdir: Use modules and workdir to avoid cd; keeps recipes portable and context-safe."
+  b00t-cli lfmf docker "container cleanup: Use 'docker system prune' regularly to avoid disk bloat."
+  b00t-cli lfmf git "atomic commits: Commit small, focused changes for easier review and rollback."
+
+  # Bad
+  b00t-cli lfmf just "cd: I always use cd in my recipes."
+  b00t-cli lfmf docker "disk full: My disk filled up once."
+  b00t-cli lfmf git "fix: Fixed a bug in my repo."
+
+Tips:
+- Topic: <25 tokens, concise, positive, tool-focused.
+- Body: <250 tokens, actionable, never repo-specific.
+- Affirmative: 'Do X for Y benefit', not 'Don't do X'.
+- Suitable tools: any with a b00t datum (TOML, learn/ dir, etc).
+"#
+    )]
+    Lfmf {
+        #[clap(long, help = "Tool name")]
+        tool: Option<String>,
+        #[clap(long, help = "Lesson in '<topic>: <body>' format")]
+        lesson: Option<String>,
+        #[clap(long, group = "scope", help = "Record lesson for this repo (default)")]
+        repo: bool,
+        #[clap(long, group = "scope", help = "Record lesson globally (mutually exclusive with --repo)")]
+        global: bool,
+    },
+    #[clap(
+        about = "Get advice for syntax errors and debugging",
+        long_about = r#"
+The b00t advice system acts as a syntax therapist, providing contextual debugging assistance
+based on lessons learned from previous failures. It performs semantic search through the
+hive's collective knowledge to suggest solutions for similar error patterns.
+
+Usage:
+  b00t-cli advice <tool> "<error_pattern>"
+  b00t-cli advice <tool> list  # List all lessons for a tool
+  b00t-cli advice <tool> search "<query>"  # Semantic search for lessons
+
+Examples:
+  b00t-cli advice just "Unknown start of token '.'"
+  b00t-cli advice rust "cannot borrow as mutable"
+  b00t-cli advice docker "permission denied"
+  b00t-cli advice just list
+  b00t-cli advice rust search "template syntax"
+
+The system will:
+1. Search for similar error patterns in the vector database
+2. Return relevant lessons with confidence scores
+3. Provide conversational debugging guidance
+4. Suggest specific solutions based on hive experience
+"#
+    )]
+    Advice {
+        #[clap(help = "Tool name")]
+        tool: String,
+        #[clap(help = "Error pattern to get advice for, 'list' to show all lessons, or 'search <query>'")]
+        query: String,
+        #[clap(long, help = "Maximum number of results to return (default: 5)")]
+        count: Option<usize>,
+    },
     #[clap(about = "MCP (Model Context Protocol) server management")]
     Mcp {
         #[clap(subcommand)]
@@ -81,6 +174,11 @@ enum Commands {
         #[clap(subcommand)]
         cli_command: CliCommands,
     },
+    #[clap(about = "Execute RHAI scripts with b00t context")]
+    Script {
+        #[clap(subcommand)]
+        script_command: commands::script::ScriptCommands,
+    },
     #[clap(about = "Initialize system settings and aliases")]
     Init {
         #[clap(subcommand)]
@@ -96,7 +194,7 @@ enum Commands {
         message: Option<String>,
         #[clap(long, help = "Skip running tests (not recommended)")]
         skip_tests: bool,
-        
+
         #[clap(long = "message", help = "Commit message (MCP compatibility)")]
         message_flag: Option<String>,  // 🦨 MCP compatibility: accept --message flag
     },
@@ -118,7 +216,7 @@ enum Commands {
         installed: bool,
         #[clap(long, help = "Show only available (not installed) tools")]
         available: bool,
-        
+
         #[clap(long = "filter", help = "Filter by subsystem (MCP compatibility)")]
         filter_flag: Option<String>,  // 🦨 MCP compatibility: accept --filter flag
     },
@@ -132,15 +230,25 @@ enum Commands {
         #[clap(subcommand)]
         session_command: SessionCommands,
     },
+    #[clap(about = "Agent Coordination Protocol (ACP) - send messages to agents")]
+    Acp {
+        #[clap(subcommand)]
+        acp_command: AcpCommands,
+    },
     #[clap(about = "Learn about topics with guided documentation")]
     // 🤓 ENTANGLED: b00t-mcp/src/mcp_tools.rs LearnCommand
     // When this changes, update b00t-mcp LearnCommand structure
     Learn {
         #[clap(help = "Topic to learn about (e.g., rust, python, typescript, bash)")]
         topic: Option<String>,
-        
+
         #[clap(long = "topic", help = "Topic to learn about (MCP compatibility)")]
         topic_flag: Option<String>,  // 🦨 MCP compatibility: accept --topic flag
+    },
+    #[clap(about = "Grok knowledgebase RAG system")]
+    Grok {
+        #[clap(subcommand)]
+        grok_command: GrokCommands,
     },
 }
 
@@ -230,7 +338,7 @@ fn checkpoint(message: Option<&str>, skip_tests: bool) -> Result<()> {
         println!("✅ cargo check passed");
     }
 
-    // Generate commit message with checkpoint number  
+    // Generate commit message with checkpoint number
     let default_msg = format!("🥾 checkpoint #{}: automated commit via b00t-cli", checkpoint_count);
     let commit_msg = message.unwrap_or(&default_msg);
 
@@ -881,11 +989,11 @@ pub fn handle_session_init(
     }
 
     session.save()?;
-    
+
     // Initialize session memory and check README.md
     let mut memory = session_memory::SessionMemory::load()?;
     check_readme_status(&mut memory)?;
-    
+
     println!("🥾 Session {} initialized", session.session_id);
 
     if let Some(agent) = &session.agent_info {
@@ -961,7 +1069,7 @@ pub fn handle_session_prompt() -> Result<()> {
 fn check_readme_status(memory: &mut session_memory::SessionMemory) -> Result<()> {
     let git_root = get_workspace_root();
     let readme_path = std::path::PathBuf::from(&git_root).join("README.md");
-    
+
     if readme_path.exists() {
         if !memory.is_readme_read() {
             println!("📖 README.md found but not yet marked as read");
@@ -972,7 +1080,7 @@ fn check_readme_status(memory: &mut session_memory::SessionMemory) -> Result<()>
     } else {
         println!("ℹ️  No README.md found in git root");
     }
-    
+
     Ok(())
 }
 
@@ -985,6 +1093,12 @@ fn main() {
     }
 
     match &cli.command {
+        Some(Commands::Tiktoken { text }) => {
+            if let Err(e) = commands::tiktoken::handle_tiktoken(text) {
+                eprintln!("Error: {}", e);
+                std::process::exit(1);
+            }
+        },
         Some(Commands::Mcp { mcp_command }) => {
             if let Err(e) = mcp_command.execute(&cli.path) {
                 eprintln!("Error: {}", e);
@@ -1055,10 +1169,81 @@ fn main() {
                 std::process::exit(1);
             }
         }
+        Some(Commands::Acp { acp_command }) => {
+            if let Err(e) = acp_command.execute().await {
+                eprintln!("ACP Error: {}", e);
+                std::process::exit(1);
+            }
+        }
         Some(Commands::Learn { topic, topic_flag }) => {
             // 🦨 MCP compatibility: merge positional and flag arguments
             let effective_topic = topic.as_ref().or(topic_flag.as_ref());
             if let Err(e) = handle_learn(&cli.path, effective_topic.map(|s| s.as_str())) {
+                eprintln!("Error: {}", e);
+                std::process::exit(1);
+            }
+        }
+        Some(Commands::Grok { grok_command }) => {
+            use crate::commands::grok::handle_grok_command;
+
+            // Create Tokio runtime for async grok operations
+            let rt = match tokio::runtime::Runtime::new() {
+                Ok(rt) => rt,
+                Err(e) => {
+                    eprintln!("Error creating async runtime: {}", e);
+                    std::process::exit(1);
+                }
+            };
+
+            if let Err(e) = rt.block_on(handle_grok_command(grok_command.clone())) {
+                eprintln!("Error: {}", e);
+                std::process::exit(1);
+            }
+        }
+        Some(Commands::Lfmf { tool, lesson, repo, global }) => {
+            // Validate required fields
+            let tool = match tool {
+                Some(t) => t,
+                None => {
+                    eprintln!("--tool is required");
+                    std::process::exit(1);
+                }
+            };
+            let lesson = match lesson {
+                Some(l) => l,
+                None => {
+                    eprintln!("--lesson is required");
+                    std::process::exit(1);
+                }
+            };
+            // Determine scope
+            let scope = if *global { "global" } else { "repo" };
+            if let Err(e) = commands::lfmf::handle_lfmf(&cli.path, &tool, &lesson, scope) {
+                eprintln!("Error: {}", e);
+                std::process::exit(1);
+            }
+        }
+        Some(Commands::Advice { tool, query, count }) => {
+            use crate::commands::advice::handle_advice;
+
+            // Create Tokio runtime for async advice operations
+            let rt = match tokio::runtime::Runtime::new() {
+                Ok(rt) => rt,
+                Err(e) => {
+                    eprintln!("Error creating async runtime: {}", e);
+                    std::process::exit(1);
+                }
+            };
+
+            if let Err(e) = rt.block_on(handle_advice(&cli.path, tool, query, *count)) {
+                eprintln!("Error: {}", e);
+                std::process::exit(1);
+            }
+        }
+        Some(Commands::Script { script_command }) => {
+            use crate::commands::script::handle_script_command;
+            
+            if let Err(e) = handle_script_command(script_command.clone()) {
                 eprintln!("Error: {}", e);
                 std::process::exit(1);
             }

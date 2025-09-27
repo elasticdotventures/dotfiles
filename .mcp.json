@@ -4,15 +4,14 @@
       "args": [
         "--stdio"
       ],
-      "command": "./target/debug/b00t-mcp",
-      "env": {}
+      "command": "b00t-mcp"
     },
-    "browser-use": {
+    "context7": {
       "args": [
-        "browser-use[cli]",
-        "--mcp"
+        "-y",
+        "@upstash/context7-mcp"
       ],
-      "command": "uvx"
+      "command": "bunx"
     },
     "github": {
       "args": [
@@ -20,6 +19,15 @@
         "@modelcontextprotocol/server-github"
       ],
       "command": "npx"
+    },
+    "taskmaster-ai": {
+      "args": [
+        "-y",
+        "--package=task-master-ai",
+        "task-master-ai"
+      ],
+      "command": "bunx",
+      "env": {}
     }
   }
 }

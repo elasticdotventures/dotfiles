@@ -7,6 +7,8 @@ repo-root := env_var_or_default("JUST_REPO_ROOT", `git rev-parse --show-toplevel
 set shell := ["bash", "-cu"]
 mod cog
 mod b00t
+# this is an antipattens  
+mod litellm '_b00t_/litellm/justfile'
 
 stow:
     stow --adopt -d ~/.dotfiles -t ~ bash
@@ -134,3 +136,73 @@ install-tool TOOL:
     #!/bin/bash
     echo "📦 Installing tool: {{TOOL}}"
     echo "TODO: Implement tool installation via b00t cli"
+
+# Qdrant vector database
+qdrant-run:
+    podman run -d --name qdrant-container -p 6333:6333 -p 6334:6334 -e QDRANT__SERVICE__GRPC_PORT="6334" docker.io/qdrant/qdrant:latest
+
+qdrant-stop:
+    podman stop qdrant-container && podman rm qdrant-container
+
+# 🤓 PyO3/Maturin build commands for b00t-grok-py
+grok-build:
+    #!/bin/bash
+    # 🤓 Critical: unset CONDA_PREFIX to avoid environment conflicts with uv
+    # This prevents "Both VIRTUAL_ENV and CONDA_PREFIX are set" error
+    echo "🦀🐍 Building b00t-grok with PyO3 bindings..."
+    unset CONDA_PREFIX
+    cd b00t-grok-py
+    uv run maturin develop
+
+grok-dev: grok-build
+    #!/bin/bash
+    echo "🚀 Starting b00t-grok-py development server..."
+    cd b00t-grok-py
+    unset CONDA_PREFIX
+    uv run python -m uvicorn main:app --reload --port 8001
+
+grok-clean:
+    #!/bin/bash
+    echo "🧹 Cleaning b00t-grok build artifacts..."
+    cargo clean --package b00t-grok
+    cd b00t-grok-py && rm -rf build/ dist/ *.egg-info/
+
+# Validate MCP TOML files against schema
+validate-mcp:
+    #!/bin/bash
+    echo "🔍 Validating MCP TOML files..."
+    cd {{repo-root}}/_b00t_
+    taplo lint --schema file://$PWD/schema-资源/mcp.json *.mcp.toml
+
+# Build and package b00t browser extension
+browser-ext-build:
+    #!/bin/bash
+    echo "🥾 Building b00t browser extension..."
+    cd {{repo-root}}/b00t-browser-ext
+    npm ci
+    npm run build
+    echo "✅ Extension built in build/chrome-mv3-prod/"
+
+browser-ext-package:
+    #!/bin/bash
+    echo "📦 Packaging b00t browser extension..."
+    cd {{repo-root}}/b00t-browser-ext
+    npm run package
+    VERSION=$(node -p "require('./package.json').version")
+    echo "✅ Extension packaged as b00t-browser-ext-chrome-v${VERSION}.zip"
+
+browser-ext-dev:
+    #!/bin/bash
+    echo "🚀 Starting b00t browser extension dev server..."
+    cd {{repo-root}}/b00t-browser-ext
+    npm run dev
+
+socks5:
+    {{repo-root}}/scripts/socks5.sh
+
+port-map:
+    {{repo-root}}/scripts/port-map.sh
+
+install-services:
+    {{repo-root}}/scripts/install-systemd-services.sh 
+

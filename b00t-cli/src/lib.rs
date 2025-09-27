@@ -14,6 +14,7 @@ pub mod session_memory;
 pub mod traits;
 pub mod utils;
 pub mod whoami;
+pub mod cloud_sync;
 pub use traits::*;
 
 #[derive(Deserialize, Serialize, Debug, Clone, PartialEq)]
@@ -172,13 +173,21 @@ pub struct AgentInfo {
 
 pub fn extract_comments_and_clean_json(input: &str) -> (String, Option<String>) {
     let comment_re = Regex::new(r"//.*$").unwrap();
+    let block_comment_re = Regex::new(r"/\*.*?\*/").unwrap();
 
     let (mut cleaned_input, mut first_comment) = (String::new(), None);
 
-    for line in input.lines() {
+    // First, remove block comments /* ... */
+    let input_without_blocks = block_comment_re.replace_all(input, "").to_string();
+
+    // Then process line comments
+    for line in input_without_blocks.lines() {
         if let Some(cap) = comment_re.find(line) {
             if first_comment.is_none() {
-                first_comment = Some(cap.as_str().trim_start_matches("//").trim().to_string());
+                let comment_text = cap.as_str().trim_start_matches("//").trim();
+                if !comment_text.is_empty() {
+                    first_comment = Some(comment_text.to_string());
+                }
             }
             let line_without_comment = line[..cap.start()].trim_end();
             if !line_without_comment.is_empty() {
@@ -190,6 +199,25 @@ pub fn extract_comments_and_clean_json(input: &str) -> (String, Option<String>) 
             cleaned_input.push('\n');
         }
     }
+
+    // Also handle trailing commas (JSON5 style) - both objects and arrays
+    let trailing_comma_re = Regex::new(r",(\s*[}\]])").unwrap();
+    cleaned_input = trailing_comma_re.replace_all(&cleaned_input, "$1").to_string();
+    
+    // Handle trailing commas at end of lines more aggressively
+    let lines: Vec<String> = cleaned_input.lines().map(|line| {
+        let trimmed = line.trim_end();
+        if trimmed.ends_with(',') && 
+           (line.contains('}') || line.contains(']') || 
+            cleaned_input.lines().skip_while(|l| l != &line).nth(1)
+                .map(|next| next.trim().starts_with('}') || next.trim().starts_with(']'))
+                .unwrap_or(false)) {
+            trimmed.strip_suffix(',').unwrap_or(trimmed).to_string()
+        } else {
+            line.to_string()
+        }
+    }).collect();
+    cleaned_input = lines.join("\n");
 
     (cleaned_input.trim().to_string(), first_comment)
 }
@@ -381,6 +409,13 @@ pub fn normalize_mcp_json(input: &str, dwiw: bool) -> Result<BootDatum> {
         if keys.len() == 1 {
             let server_name = keys[0].clone();
             let server_config = &mcp_servers[&server_name];
+            return Ok(create_mcp_datum_from_json(server_name, hint.clone(), server_config));
+        } else if keys.len() > 1 {
+            // Multiple servers in mcpServers - take the first one and warn
+            let server_name = keys[0].clone();
+            let server_config = &mcp_servers[&server_name];
+            eprintln!("⚠️  Multiple servers found in mcpServers, using first: {}", server_name);
+            eprintln!("💡 To register multiple servers, use separate commands for each");
             return Ok(create_mcp_datum_from_json(server_name, hint.clone(), server_config));
         }
     }
@@ -761,10 +796,21 @@ pub fn mcp_list(path: &str, json_output: bool) -> Result<()> {
 /// // echo '{"name":"test"}' | b00t-cli mcp register -
 /// ```
 pub fn mcp_add_json(json: &str, dwiw: bool, path: &str) -> Result<()> {
-    use std::io::{self, Read};
+    use std::io::{self, Read, IsTerminal};
     
     let json_content = if json == "-" {
         let mut buffer = String::new();
+        
+        // Check if reading from terminal (interactive) vs pipe
+        if io::stdin().is_terminal() {
+            eprintln!("📋 Paste your MCP server JSON configuration and press Ctrl+D when done:");
+            eprintln!("💡 Supported formats:");
+            eprintln!("   • Direct: {{\"name\":\"server\",\"command\":\"npx\",\"args\":[...]}}");
+            eprintln!("   • mcpServers: {{\"mcpServers\":{{\"server\":{{...}}}}}}");
+            eprintln!("   • Named: {{\"server-name\":{{\"command\":\"npx\",...}}}}");
+            eprintln!("");
+        }
+        
         match io::stdin().read_to_string(&mut buffer) {
             Ok(_) => {
                 let trimmed = buffer.trim();
@@ -845,18 +891,16 @@ pub fn mcp_output(path: &str, use_mcp_servers_wrapper: bool, servers: &str) -> R
 
         match get_mcp_config(server_name, path) {
             Ok(datum) => {
+                let (command, args) = extract_mcp_command_args(&datum);
                 let mut server_config = serde_json::Map::new();
                 server_config.insert(
                     "command".to_string(),
-                    serde_json::Value::String(datum.command.unwrap_or_else(|| "npx".to_string())),
+                    serde_json::Value::String(command),
                 );
                 server_config.insert(
                     "args".to_string(),
                     serde_json::Value::Array(
-                        datum
-                            .args
-                            .unwrap_or_default()
-                            .into_iter()
+                        args.into_iter()
                             .map(serde_json::Value::String)
                             .collect(),
                     ),
@@ -921,17 +965,45 @@ pub fn mcp_output(path: &str, use_mcp_servers_wrapper: bool, servers: &str) -> R
     Ok(())
 }
 
+/// Extract command and args from MCP datum, handling both new multi-method and legacy formats
+fn extract_mcp_command_args(datum: &BootDatum) -> (String, Vec<String>) {
+    if let Some(mcp) = &datum.mcp {
+        if let Some(stdio_methods) = &mcp.stdio {
+            if let Some(first_method) = stdio_methods.first() {
+                let command = first_method.get("command")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("npx")
+                    .to_string();
+                let args = first_method.get("args")
+                    .and_then(|v| v.as_array())
+                    .map(|arr| arr.iter()
+                        .filter_map(|v| v.as_str())
+                        .map(|s| s.to_string())
+                        .collect::<Vec<String>>())
+                    .unwrap_or_default();
+                return (command, args);
+            }
+        }
+    }
+    
+    // Fallback to legacy fields for backwards compatibility
+    (
+        datum.command.clone().unwrap_or_else(|| "npx".to_string()),
+        datum.args.clone().unwrap_or_default()
+    )
+}
+
 // MCP Installation Functions
 pub fn claude_code_install_mcp(name: &str, path: &str) -> Result<()> {
     use duct::cmd;
     
     let datum = get_mcp_config(name, path)?;
+    let (command, args) = extract_mcp_command_args(&datum);
 
-    // Claude Code uses claude mcp add-json command
     let claude_json = serde_json::json!({
         "name": datum.name,
-        "command": datum.command.as_ref().unwrap_or(&"npx".to_string()),
-        "args": datum.args.as_ref().unwrap_or(&vec![])
+        "command": command,
+        "args": args
     });
 
     let json_str =
@@ -967,11 +1039,12 @@ pub fn vscode_install_mcp(name: &str, path: &str) -> Result<()> {
     use duct::cmd;
     
     let datum = get_mcp_config(name, path)?;
+    let (command, args) = extract_mcp_command_args(&datum);
 
     let vscode_json = serde_json::json!({
         "name": datum.name,
-        "command": datum.command.as_ref().unwrap_or(&"npx".to_string()),
-        "args": datum.args.as_ref().unwrap_or(&vec![])
+        "command": command,
+        "args": args
     });
 
     let json_str =
@@ -1001,11 +1074,12 @@ pub fn gemini_install_mcp(name: &str, path: &str, use_repo: bool) -> Result<()> 
     use duct::cmd;
     
     let datum = get_mcp_config(name, path)?;
+    let (command, args) = extract_mcp_command_args(&datum);
 
     let gemini_json = serde_json::json!({
         "name": datum.name,
-        "command": datum.command.as_ref().unwrap_or(&"npx".to_string()),
-        "args": datum.args.as_ref().unwrap_or(&vec![])
+        "command": command,
+        "args": args
     });
 
     let json_str =
@@ -1150,9 +1224,8 @@ pub fn dotmcpjson_install_mcp(name: &str, path: &str, stdio_command: Option<&str
             }
         }
     } else {
-        // Legacy single-source config
-        let command = datum.command.as_ref().unwrap_or(&"npx".to_string()).clone();
-        let args = datum.args.as_ref().unwrap_or(&vec![]).clone();
+        // Legacy single-source config - use extract_mcp_command_args for consistency
+        let (command, args) = extract_mcp_command_args(&datum);
         (command, args, datum.env.clone(), "stdio")
     };
     
@@ -1205,6 +1278,7 @@ pub fn dotmcpjson_install_mcp(name: &str, path: &str, stdio_command: Option<&str
     
     Ok(())
 }
+
 
 // Session management functions
 impl SessionState {
