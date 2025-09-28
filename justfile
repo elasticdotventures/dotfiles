@@ -9,6 +9,7 @@ mod cog
 mod b00t
 # this is an antipattens  
 mod litellm '_b00t_/litellm/justfile'
+mod b00t-mcp-npm
 
 stow:
     stow --adopt -d ~/.dotfiles -t ~ bash
@@ -27,6 +28,7 @@ install:
     echo "🥾 _b00t_ install"
     cargo install --path b00t-mcp
     cargo install --path b00t-cli
+
 
 installx:
     sudo apt update
