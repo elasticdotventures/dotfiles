@@ -69,10 +69,53 @@ pub enum McpCommands {
         #[clap(help = "Comma-separated list of MCP server names to output")]
         servers: String,
     },
+    #[clap(
+        about = "MCP Registry operations (list, search, install dependencies)",
+        long_about = "Interact with b00t MCP registry for server management and dependency installation.\n\nExamples:\n  b00t-cli mcp registry list\n  b00t-cli mcp registry search --tag docker\n  b00t-cli mcp registry get io.b00t/server-name\n  b00t-cli mcp registry install-deps io.b00t/server-name\n  b00t-cli mcp registry sync-official"
+    )]
+    Registry {
+        #[clap(subcommand)]
+        action: RegistryAction,
+    },
+}
+
+#[derive(Parser)]
+pub enum RegistryAction {
+    #[clap(about = "List all registered MCP servers")]
+    List {
+        #[clap(long, help = "Output in JSON format")]
+        json: bool,
+    },
+    #[clap(about = "Search for MCP servers by keyword or tag")]
+    Search {
+        #[clap(long, help = "Search keyword in name/description")]
+        keyword: Option<String>,
+        #[clap(long, help = "Search by tag")]
+        tag: Option<String>,
+    },
+    #[clap(about = "Get detailed information about a specific server")]
+    Get {
+        #[clap(help = "Server ID (e.g., io.b00t/server-name)")]
+        server_id: String,
+    },
+    #[clap(about = "Install dependencies for an MCP server")]
+    InstallDeps {
+        #[clap(help = "Server ID to install dependencies for")]
+        server_id: String,
+    },
+    #[clap(about = "Sync with official MCP registry")]
+    SyncOfficial,
+    #[clap(about = "Auto-discover MCP servers from system")]
+    Discover,
+    #[clap(about = "Export registry in MCP format")]
+    Export {
+        #[clap(long, short, help = "Output file (default: stdout)")]
+        output: Option<String>,
+    },
 }
 
 impl McpCommands {
-    pub fn execute(&self, path: &str) -> Result<()> {
+    pub async fn execute_async(&self, path: &str) -> Result<()> {
         match self {
             McpCommands::Register { name_or_json, hint: _, remove, dwiw, no_dwiw, command_args } => {
                 if *remove {
@@ -163,7 +206,92 @@ impl McpCommands {
                 let use_mcp_servers_wrapper = !json && (*mcp_servers || !servers.contains(','));
                 crate::mcp_output(path, use_mcp_servers_wrapper, servers)
             }
+            McpCommands::Registry { action } => {
+                action.execute_async().await
+            }
         }
+    }
+}
+
+impl RegistryAction {
+    pub async fn execute_async(&self) -> Result<()> {
+        use b00t_c0re_lib::mcp_registry::McpRegistry;
+
+        let mut registry = McpRegistry::default();
+
+            match self {
+                RegistryAction::List { json } => {
+                    let servers = registry.list();
+
+                    if *json {
+                        println!("{}", serde_json::to_string_pretty(&servers)?);
+                    } else {
+                        println!("📋 Registered MCP Servers:\n");
+                        for server in servers {
+                            println!("  {} ({})", server.name, server.id);
+                            println!("    Command: {} {}", server.config.command, server.config.args.join(" "));
+                            println!("    Tags: {}", server.tags.join(", "));
+                            println!("    Status: {:?}", server.metadata.health_status);
+                            println!();
+                        }
+                    }
+                    Ok(())
+                }
+                RegistryAction::Search { keyword, tag } => {
+                    let results = if let Some(tag_val) = tag {
+                        registry.search_by_tag(tag_val)
+                    } else if let Some(kw) = keyword {
+                        registry.search(kw)
+                    } else {
+                        anyhow::bail!("Must provide --keyword or --tag");
+                    };
+
+                    println!("🔍 Search Results ({} matches):\n", results.len());
+                    for server in results {
+                        println!("  {} - {}", server.id, server.description);
+                        println!("    Tags: {}", server.tags.join(", "));
+                        println!();
+                    }
+                    Ok(())
+                }
+                RegistryAction::Get { server_id } => {
+                    if let Some(server) = registry.get(server_id) {
+                        println!("{}", serde_json::to_string_pretty(&server)?);
+                        Ok(())
+                    } else {
+                        anyhow::bail!("Server '{}' not found in registry", server_id)
+                    }
+                }
+                RegistryAction::InstallDeps { server_id } => {
+                    println!("📦 Installing dependencies for {}...", server_id);
+                    registry.install_dependencies(server_id).await?;
+                    println!("✅ Dependencies installed successfully");
+                    Ok(())
+                }
+                RegistryAction::SyncOfficial => {
+                    println!("🔄 Syncing with official MCP registry...");
+                    let count = registry.sync_official_registry().await?;
+                    println!("✅ Synced {} servers from official registry", count);
+                    Ok(())
+                }
+                RegistryAction::Discover => {
+                    println!("🔍 Auto-discovering MCP servers from system...");
+                    let count = registry.auto_discover().await?;
+                    println!("✅ Discovered {} MCP servers", count);
+                    Ok(())
+                }
+                RegistryAction::Export { output } => {
+                    let json = registry.export_to_mcp_format()?;
+
+                    if let Some(path) = output {
+                        std::fs::write(path, &json)?;
+                        println!("✅ Registry exported to {}", path);
+                    } else {
+                        println!("{}", json);
+                    }
+                    Ok(())
+                }
+            }
     }
 }
 

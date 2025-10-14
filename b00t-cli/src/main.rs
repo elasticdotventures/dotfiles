@@ -1098,7 +1098,7 @@ async fn main() {
             }
         },
         Some(Commands::Mcp { mcp_command }) => {
-            if let Err(e) = mcp_command.execute(&cli.path) {
+            if let Err(e) = mcp_command.execute_async(&cli.path).await {
                 eprintln!("Error: {}", e);
                 std::process::exit(1);
             }
