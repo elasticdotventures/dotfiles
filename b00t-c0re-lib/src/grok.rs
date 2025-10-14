@@ -325,6 +325,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "Requires uv + b00t-grok-py service"]
     async fn test_grok_client_initialization() {
         let mut client = GrokClient::new();
         

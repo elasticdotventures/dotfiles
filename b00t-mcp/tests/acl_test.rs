@@ -32,6 +32,7 @@ fn test_custom_acl_config() {
         default_policy: Policy::Deny,
         commands,
         patterns: None,
+        dev: None,
     };
     
     let filter = AclFilter::new(config).unwrap();
@@ -55,6 +56,7 @@ fn test_pattern_overrides() {
             allow: Some(vec![".*special.*".to_string()]),
             deny: Some(vec![".*dangerous.*".to_string()]),
         }),
+        dev: None,
     };
     
     let filter = AclFilter::new(config).unwrap();

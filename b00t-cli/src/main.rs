@@ -39,7 +39,7 @@ use datum_mcp::McpDatum;
 use datum_vscode::VscodeDatum;
 use traits::*;
 
-use crate::commands::{AcpCommands, AiCommands, AppCommands, CliCommands, GrokCommands, InitCommands, K8sCommands, McpCommands, SessionCommands, WhatismyCommands};
+use crate::commands::{ChatCommands, AiCommands, AppCommands, CliCommands, GrokCommands, InitCommands, K8sCommands, McpCommands, SessionCommands, WhatismyCommands};
 use crate::commands::learn::handle_learn;
 
 // Re-export commonly used functions for datum modules
@@ -228,9 +228,9 @@ The system will:
         session_command: SessionCommands,
     },
     #[clap(about = "Agent Coordination Protocol (ACP) - send messages to agents")]
-    Acp {
+    Chat {
         #[clap(subcommand)]
-        acp_command: AcpCommands,
+        chat_command: ChatCommands,
     },
     #[clap(about = "Learn about topics with guided documentation")]
     // 🤓 ENTANGLED: b00t-mcp/src/mcp_tools.rs LearnCommand
@@ -1165,9 +1165,9 @@ async fn main() {
                 std::process::exit(1);
             }
         }
-        Some(Commands::Acp { acp_command }) => {
-            if let Err(e) = acp_command.execute().await {
-                eprintln!("ACP Error: {}", e);
+        Some(Commands::Chat { chat_command }) => {
+            if let Err(e) = chat_command.execute().await {
+                eprintln!("Chat Error: {}", e);
                 std::process::exit(1);
             }
         }

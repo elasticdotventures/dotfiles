@@ -16,7 +16,10 @@ use std::path::Path;
 use std::collections::HashMap;
 use tracing::{info, error, debug};
 
-use crate::mcp_tools::create_mcp_registry;
+use crate::{
+    chat::ChatRuntime,
+    mcp_tools::create_mcp_registry,
+};
 use crate::clap_reflection::McpCommandRegistry;
 use b00t_c0re_lib::{B00tContext, utils};
 
@@ -28,6 +31,7 @@ use b00t_c0re_lib::{B00tContext, utils};
 pub struct B00tMcpServerRusty {
     working_dir: std::path::PathBuf,
     registry: McpCommandRegistry,
+    chat_runtime: ChatRuntime,
 }
 
 impl B00tMcpServerRusty {
@@ -37,6 +41,7 @@ impl B00tMcpServerRusty {
         Ok(Self {
             working_dir,
             registry: create_mcp_registry(),
+            chat_runtime: ChatRuntime::global(),
         })
     }
     
@@ -126,15 +131,17 @@ impl ServerHandler for B00tMcpServerRusty {
 
         info!("🦀 Executing compile-time tool: {} with params: {:?}", tool_name, params);
 
-        // Execute the command using the registry
-        match self.registry.execute(tool_name, &params) {
+        let execution_result = self.registry.execute(tool_name, &params);
+        let chat_indicator = self.chat_runtime.drain_indicator().await;
+
+        match execution_result {
             Ok(output) => {
                 info!("✅ Successfully executed tool: {}", tool_name);
-                Ok(self.create_success_result(&output))
+                Ok(self.create_success_result(&output, &chat_indicator))
             }
             Err(e) => {
                 error!("❌ Failed to execute tool {}: {}", tool_name, e);
-                Ok(self.create_error_result(&e.to_string()))
+                Ok(self.create_error_result(&e.to_string(), &chat_indicator))
             }
         }
     }
@@ -287,22 +294,30 @@ impl ServerHandler for B00tMcpServerRusty {
 
 impl B00tMcpServerRusty {
     /// Create successful MCP tool result
-    fn create_success_result(&self, output: &str) -> CallToolResult {
+    fn create_success_result(&self, output: &str, indicator: &str) -> CallToolResult {
         #[derive(serde::Serialize)]
         struct B00tOutput {
             output: String,
             success: bool,
             server_type: String,
             working_dir: String,
+            indicator: String,
         }
 
+        let decorated_output = if output.trim().is_empty() {
+            indicator.to_string()
+        } else {
+            format!("{}\n{}", output, indicator)
+        };
+
         let result = B00tOutput {
-            output: output.to_string(),
+            output: decorated_output,
             success: true,
             server_type: "rusty".to_string(),
             working_dir: self.working_dir.display().to_string(),
+            indicator: indicator.to_string(),
         };
-        
+
         let content = serde_json::to_string_pretty(&result)
             .unwrap_or_else(|_| "Failed to serialize result".to_string());
             
@@ -310,22 +325,30 @@ impl B00tMcpServerRusty {
     }
 
     /// Create error MCP tool result
-    fn create_error_result(&self, error: &str) -> CallToolResult {
+    fn create_error_result(&self, error: &str, indicator: &str) -> CallToolResult {
         #[derive(serde::Serialize)]
         struct B00tError {
             error: String,
             success: bool,
             server_type: String,
             working_dir: String,
+            indicator: String,
         }
 
+        let decorated_error = if error.trim().is_empty() {
+            indicator.to_string()
+        } else {
+            format!("{}\n{}", error, indicator)
+        };
+
         let result = B00tError {
-            error: error.to_string(),
+            error: decorated_error,
             success: false,
             server_type: "rusty".to_string(),
             working_dir: self.working_dir.display().to_string(),
+            indicator: indicator.to_string(),
         };
-        
+
         let content = serde_json::to_string_pretty(&result)
             .unwrap_or_else(|_| "Failed to serialize error".to_string());
             
@@ -404,10 +427,11 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let server = B00tMcpServerRusty::new(temp_dir.path(), "").unwrap();
         
-        let success_result = server.create_success_result("Test output");
+        let indicator = "<🥾>{ \"chat\": { \"msgs\": 0 } }</🥾>";
+        let success_result = server.create_success_result("Test output", indicator);
         assert!(success_result.content.len() > 0);
         
-        let error_result = server.create_error_result("Test error");
+        let error_result = server.create_error_result("Test error", indicator);
         assert!(error_result.content.len() > 0);
         
         // Verify the content can be parsed

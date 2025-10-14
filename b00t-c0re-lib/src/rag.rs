@@ -212,13 +212,7 @@ impl RagLightManager {
 
     /// Detect appropriate loader type based on source
     fn detect_loader_type(&self, source: &str) -> Result<LoaderType> {
-        if source.starts_with("http://") || source.starts_with("https://") {
-            if source.contains("github.com") || source.contains("gitlab.com") || source.ends_with(".git") {
-                Ok(LoaderType::Git)
-            } else {
-                Ok(LoaderType::Url)
-            }
-        } else if source.ends_with(".pdf") {
+        if source.ends_with(".pdf") {
             Ok(LoaderType::Pdf)
         } else if source.ends_with(".md") || source.ends_with(".markdown") {
             Ok(LoaderType::Markdown)
@@ -226,6 +220,12 @@ impl RagLightManager {
             Ok(LoaderType::Text)
         } else if source.starts_with("git@") || source.contains(".git") {
             Ok(LoaderType::Git)
+        } else if source.starts_with("http://") || source.starts_with("https://") {
+            if source.contains("github.com") || source.contains("gitlab.com") || source.ends_with(".git") {
+                Ok(LoaderType::Git)
+            } else {
+                Ok(LoaderType::Url)
+            }
         } else {
             Ok(LoaderType::Auto)
         }

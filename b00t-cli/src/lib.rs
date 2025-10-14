@@ -84,6 +84,16 @@ pub struct BootDatum {
     // Aliases for CLI commands
     pub aliases: Option<Vec<String>>,
 
+    // Datum dependencies - references to other datum IDs for auto-installation
+    // Format: "datum-name.datum-type" (e.g., "python.cli", "docker.docker")
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub depends_on: Option<Vec<String>>,
+
+    // Stack members - list of datum IDs that form this stack (only for DatumType::Stack)
+    // Format: ["postgres.docker", "pgadmin.docker", "redis.docker"]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub members: Option<Vec<String>>,
+
     // MCP-specific multi-method support - these will be handled by datum_mcp module
     #[serde(skip_serializing_if = "Option::is_none")]
     pub mcp: Option<McpMethods>,
@@ -110,6 +120,7 @@ pub enum DatumType {
     Nix,
     Ai,
     Cli,
+    Stack,
 }
 
 #[derive(Serialize, Debug)]
@@ -304,6 +315,8 @@ fn create_mcp_datum_from_json(
                     .collect()
             }),
         aliases: None,
+        depends_on: None,
+        members: None,
         // Convert legacy command/args to new multi-method format
         mcp: Some(McpMethods {
             stdio: Some(vec![cli_method.as_object().unwrap().iter()
@@ -385,6 +398,8 @@ pub fn normalize_mcp_json(input: &str, dwiw: bool) -> Result<BootDatum> {
                             .collect()
                     }),
                 aliases: None,
+                depends_on: None,
+                members: None,
                 mcp: Some(McpMethods {
                     stdio: None,
                     httpstream: Some(http_method.as_object().unwrap().iter()
@@ -473,6 +488,7 @@ pub fn create_unified_toml_config(datum: &BootDatum, path: &str) -> Result<()> {
         DatumType::Nix => ".nix.toml",
         DatumType::Ai => ".ai.toml",
         DatumType::Cli => ".cli.toml",
+        DatumType::Stack => ".stack.toml",
         DatumType::Unknown => ".toml",
     };
 
@@ -504,6 +520,7 @@ impl std::fmt::Display for DatumType {
             DatumType::Nix => write!(f, "nix"),
             DatumType::Ai => write!(f, "AI"),
             DatumType::Cli => write!(f, "CLI"),
+            DatumType::Stack => write!(f, "stack"),
         }
     }
 }
@@ -528,6 +545,8 @@ impl DatumType {
             DatumType::Nix
         } else if filename.ends_with(".ai.toml") {
             DatumType::Ai
+        } else if filename.ends_with(".stack.toml") {
+            DatumType::Stack
         } else {
             DatumType::Unknown // Default fallback for .toml files
         }

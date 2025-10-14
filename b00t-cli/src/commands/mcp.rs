@@ -313,7 +313,8 @@ mod tests {
 
         // This should fail because we don't have a valid test directory, but the command should parse correctly
         // The important thing is that it doesn't panic and processes the JSON correctly
-        let result = register_cmd.execute("/tmp/nonexistent");
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let result = rt.block_on(register_cmd.execute_async("/tmp/nonexistent"));
         assert!(result.is_err()); // Expected to fail due to invalid path, but should not panic
 
         // Test install command enum creation
@@ -327,7 +328,7 @@ mod tests {
         };
 
         // This should fail because the server doesn't exist, but should not panic
-        let result = install_cmd.execute("/tmp/nonexistent");
+        let result = rt.block_on(install_cmd.execute_async("/tmp/nonexistent"));
         assert!(result.is_err()); // Expected to fail, but should not panic
     }
 }

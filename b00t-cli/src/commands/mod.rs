@@ -12,7 +12,7 @@ pub mod advice;
 pub mod tiktoken;
 pub mod grok;
 pub mod script;
-pub mod acp;
+pub mod chat;
 
 pub use mcp::McpCommands;
 pub use k8s::K8sCommands;
@@ -23,4 +23,4 @@ pub use init::InitCommands;
 pub use session::SessionCommands;
 pub use whatismy::WhatismyCommands;
 pub use grok::GrokCommands;
-pub use acp::AcpCommands;
+pub use chat::ChatCommands;

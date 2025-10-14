@@ -106,31 +106,37 @@ impl LfmfSystem {
     /// Load configuration from TOML file or environment variables
     pub fn load_config(path: &str) -> Result<LfmfConfig> {
         let config_path = Path::new(path).join("lfmf.toml");
-        
-        let mut config = if config_path.exists() {
+        let config_dir = Path::new(path);
+        let config_exists = config_path.exists();
+
+        let mut config = if config_exists {
             let content = fs::read_to_string(&config_path)
                 .context(format!("Failed to read LFMF config from {}", config_path.display()))?;
             toml::from_str(&content)
                 .context("Failed to parse lfmf.toml")?
         } else {
-            LfmfConfig::default()
+            let mut cfg = LfmfConfig::default();
+            cfg.filesystem.learn_dir = config_dir.join("learn").to_string_lossy().to_string();
+            cfg
         };
 
         // Override with environment variables if present
-        if let Ok(url) = env::var("QDRANT_URL") {
-            config.qdrant.url = url;
-        }
-        
-        if let Ok(api_key) = env::var("QDRANT_API_KEY") {
-            config.qdrant.api_key = Some(api_key);
-        }
-        
-        if let Ok(collection) = env::var("QDRANT_COLLECTION") {
-            config.qdrant.collection = Some(collection);
-        }
+        if !config_exists {
+            if let Ok(url) = env::var("QDRANT_URL") {
+                config.qdrant.url = url;
+            }
+            
+            if let Ok(api_key) = env::var("QDRANT_API_KEY") {
+                config.qdrant.api_key = Some(api_key);
+            }
+            
+            if let Ok(collection) = env::var("QDRANT_COLLECTION") {
+                config.qdrant.collection = Some(collection);
+            }
 
-        if let Ok(learn_dir) = env::var("B00T_LEARN_DIR") {
-            config.filesystem.learn_dir = learn_dir;
+            if let Ok(learn_dir) = env::var("B00T_LEARN_DIR") {
+                config.filesystem.learn_dir = learn_dir;
+            }
         }
 
         Ok(config)
