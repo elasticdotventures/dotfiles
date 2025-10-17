@@ -14,11 +14,7 @@ use tokio::{
 };
 use tracing::{debug, error, info};
 
-use crate::{
-    error::ChatResult,
-    message::ChatMessage,
-    transport::default_socket_path,
-};
+use crate::{error::ChatResult, message::ChatMessage, transport::default_socket_path};
 
 /// Shared inbox that stores unread chat messages.
 #[derive(Debug, Clone)]

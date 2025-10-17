@@ -6,12 +6,12 @@
 //! - Auto-discover tools from registered servers
 //! - Act as both an MCP server AND a registry
 
-use anyhow::{Result, Context};
+use anyhow::{Context, Result};
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::PathBuf;
-use chrono::{DateTime, Utc};
-use tracing::{info, warn, debug};
+use tracing::{debug, info, warn};
 
 /// MCP server registration entry in b00t registry
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -202,8 +202,7 @@ impl McpRegistry {
         let data = std::fs::read_to_string(&self.storage_path)
             .context("Failed to read registry storage")?;
 
-        self.servers = serde_json::from_str(&data)
-            .context("Failed to parse registry storage")?;
+        self.servers = serde_json::from_str(&data).context("Failed to parse registry storage")?;
 
         info!("📂 Loaded {} servers from registry", self.servers.len());
         Ok(())
@@ -213,15 +212,13 @@ impl McpRegistry {
     fn save(&self) -> Result<()> {
         // Ensure parent directory exists
         if let Some(parent) = self.storage_path.parent() {
-            std::fs::create_dir_all(parent)
-                .context("Failed to create registry directory")?;
+            std::fs::create_dir_all(parent).context("Failed to create registry directory")?;
         }
 
-        let data = serde_json::to_string_pretty(&self.servers)
-            .context("Failed to serialize registry")?;
+        let data =
+            serde_json::to_string_pretty(&self.servers).context("Failed to serialize registry")?;
 
-        std::fs::write(&self.storage_path, data)
-            .context("Failed to write registry storage")?;
+        std::fs::write(&self.storage_path, data).context("Failed to write registry storage")?;
 
         debug!("💾 Saved registry with {} servers", self.servers.len());
         Ok(())
@@ -250,7 +247,10 @@ impl McpRegistry {
             info!("🗑️  Unregistered MCP server: {}", server_id);
             Ok(())
         } else {
-            Err(anyhow::anyhow!("Server '{}' not found in registry", server_id))
+            Err(anyhow::anyhow!(
+                "Server '{}' not found in registry",
+                server_id
+            ))
         }
     }
 
@@ -278,9 +278,11 @@ impl McpRegistry {
         self.servers
             .values()
             .filter(|s| {
-                s.name.to_lowercase().contains(&keyword_lower) ||
-                s.description.to_lowercase().contains(&keyword_lower) ||
-                s.tags.iter().any(|t| t.to_lowercase().contains(&keyword_lower))
+                s.name.to_lowercase().contains(&keyword_lower)
+                    || s.description.to_lowercase().contains(&keyword_lower)
+                    || s.tags
+                        .iter()
+                        .any(|t| t.to_lowercase().contains(&keyword_lower))
             })
             .collect()
     }
@@ -325,8 +327,7 @@ impl McpRegistry {
             servers: self.servers.values().cloned().collect(),
         };
 
-        serde_json::to_string_pretty(&export)
-            .context("Failed to export registry")
+        serde_json::to_string_pretty(&export).context("Failed to export registry")
     }
 
     /// Import from MCP registry format
@@ -336,8 +337,8 @@ impl McpRegistry {
             servers: Vec<McpServerRegistration>,
         }
 
-        let import: McpRegistryImport = serde_json::from_str(json)
-            .context("Failed to parse import data")?;
+        let import: McpRegistryImport =
+            serde_json::from_str(json).context("Failed to parse import data")?;
 
         let mut imported_count = 0;
         for mut server in import.servers {
@@ -428,7 +429,9 @@ impl McpRegistry {
     pub async fn install_dependencies(&mut self, server_id: &str) -> Result<()> {
         // Clone dependencies to avoid borrow conflicts
         let dependencies = {
-            let registration = self.servers.get_mut(server_id)
+            let registration = self
+                .servers
+                .get_mut(server_id)
                 .ok_or_else(|| anyhow::anyhow!("Server '{}' not found", server_id))?;
 
             info!("📦 Installing dependencies for {}", server_id);
@@ -634,7 +637,11 @@ impl McpRegistry {
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
-            return Err(anyhow::anyhow!("Package '{}' installation failed: {}", package, stderr));
+            return Err(anyhow::anyhow!(
+                "Package '{}' installation failed: {}",
+                package,
+                stderr
+            ));
         }
 
         Ok(())

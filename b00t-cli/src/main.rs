@@ -7,11 +7,9 @@ use std::fs;
 // use std::io::{Read};
 // use std::path::PathBuf;
 // 🤓 cleaned up unused Tera import after switching to simple string replacement
-use b00t_cli::{
-    AiConfig, BootDatum,
-    SessionState, UnifiedConfig,
-};
+use b00t_cli::{AiConfig, BootDatum, SessionState, UnifiedConfig};
 
+mod cloud_sync;
 mod commands;
 mod datum_ai;
 mod datum_apt;
@@ -22,11 +20,10 @@ mod datum_gemini;
 mod datum_mcp;
 mod datum_vscode;
 mod session_memory;
+mod test_cloud_integration;
 mod traits;
 mod utils;
 mod whoami;
-mod cloud_sync;
-mod test_cloud_integration;
 use utils::get_workspace_root;
 
 // 🦨 REMOVED unused K8sDatum import - not used in main.rs
@@ -39,11 +36,18 @@ use datum_mcp::McpDatum;
 use datum_vscode::VscodeDatum;
 use traits::*;
 
-use crate::commands::{ChatCommands, AiCommands, AppCommands, CliCommands, GrokCommands, InitCommands, K8sCommands, McpCommands, SessionCommands, WhatismyCommands};
 use crate::commands::learn::handle_learn;
+use crate::commands::{
+    AiCommands, AppCommands, ChatCommands, CliCommands, GrokCommands, InitCommands, K8sCommands,
+    McpCommands, SessionCommands, StackCommands, WhatismyCommands,
+};
 
 // Re-export commonly used functions for datum modules
-pub use b00t_cli::{get_config, get_expanded_path, get_mcp_config, get_mcp_toml_files, mcp_add_json, mcp_remove, mcp_list, mcp_output, claude_code_install_mcp, vscode_install_mcp, gemini_install_mcp, dotmcpjson_install_mcp};
+pub use b00t_cli::{
+    claude_code_install_mcp, dotmcpjson_install_mcp, gemini_install_mcp, get_config,
+    get_expanded_path, get_mcp_config, get_mcp_toml_files, mcp_add_json, mcp_list, mcp_output,
+    mcp_remove, vscode_install_mcp,
+};
 
 mod integration_tests;
 
@@ -117,7 +121,11 @@ Tips:
         lesson: Option<String>,
         #[clap(long, group = "scope", help = "Record lesson for this repo (default)")]
         repo: bool,
-        #[clap(long, group = "scope", help = "Record lesson globally (mutually exclusive with --repo)")]
+        #[clap(
+            long,
+            group = "scope",
+            help = "Record lesson globally (mutually exclusive with --repo)"
+        )]
         global: bool,
     },
     #[clap(
@@ -149,7 +157,9 @@ The system will:
     Advice {
         #[clap(help = "Tool name")]
         tool: String,
-        #[clap(help = "Error pattern to get advice for, 'list' to show all lessons, or 'search <query>'")]
+        #[clap(
+            help = "Error pattern to get advice for, 'list' to show all lessons, or 'search <query>'"
+        )]
         query: String,
         #[clap(long, help = "Maximum number of results to return (default: 5)")]
         count: Option<usize>,
@@ -163,6 +173,11 @@ The system will:
     Ai {
         #[clap(subcommand)]
         ai_command: AiCommands,
+    },
+    #[clap(about = "Software stack management")]
+    Stack {
+        #[clap(subcommand)]
+        stack_command: StackCommands,
     },
     #[clap(about = "Application integration commands")]
     App {
@@ -196,7 +211,7 @@ The system will:
         skip_tests: bool,
 
         #[clap(long = "message", help = "Commit message (MCP compatibility)")]
-        message_flag: Option<String>,  // 🦨 MCP compatibility: accept --message flag
+        message_flag: Option<String>, // 🦨 MCP compatibility: accept --message flag
     },
     #[clap(about = "Query system information")]
     Whatismy {
@@ -240,7 +255,7 @@ The system will:
         topic: Option<String>,
 
         #[clap(long = "topic", help = "Topic to learn about (MCP compatibility)")]
-        topic_flag: Option<String>,  // 🦨 MCP compatibility: accept --topic flag
+        topic_flag: Option<String>, // 🦨 MCP compatibility: accept --topic flag
     },
     #[clap(about = "Grok knowledgebase RAG system")]
     Grok {
@@ -307,7 +322,6 @@ fn datum_providers_to_tool_status(providers: Vec<Box<dyn DatumProvider>>) -> Vec
         .collect()
 }
 
-
 fn checkpoint(message: Option<&str>, skip_tests: bool) -> Result<()> {
     println!("🥾 Creating checkpoint...");
 
@@ -336,7 +350,10 @@ fn checkpoint(message: Option<&str>, skip_tests: bool) -> Result<()> {
     }
 
     // Generate commit message with checkpoint number
-    let default_msg = format!("🥾 checkpoint #{}: automated commit via b00t-cli", checkpoint_count);
+    let default_msg = format!(
+        "🥾 checkpoint #{}: automated commit via b00t-cli",
+        checkpoint_count
+    );
     let commit_msg = message.unwrap_or(&default_msg);
 
     // Add all files (including untracked)
@@ -394,7 +411,10 @@ fn checkpoint(message: Option<&str>, skip_tests: bool) -> Result<()> {
             // CI integration hints
             println!("💡 Next steps:");
             println!("   • Run `git push` to trigger CI pipeline");
-            println!("   • Create PR: `gh pr create --title \"{}\"` (if ready)", commit_msg);
+            println!(
+                "   • Create PR: `gh pr create --title \"{}\"` (if ready)",
+                commit_msg
+            );
         }
         Err(e) => {
             let _ = memory.incr("failed_commits");
@@ -407,7 +427,6 @@ fn checkpoint(message: Option<&str>, skip_tests: bool) -> Result<()> {
 
     Ok(())
 }
-
 
 /// Generic function to load datum providers for a specific file extension
 /// Replaces the 7 duplicate get_*_tools_status functions
@@ -1096,7 +1115,7 @@ async fn main() {
                 eprintln!("Error: {}", e);
                 std::process::exit(1);
             }
-        },
+        }
         Some(Commands::Mcp { mcp_command }) => {
             if let Err(e) = mcp_command.execute_async(&cli.path).await {
                 eprintln!("Error: {}", e);
@@ -1105,6 +1124,12 @@ async fn main() {
         }
         Some(Commands::Ai { ai_command }) => {
             if let Err(e) = ai_command.execute(&cli.path) {
+                eprintln!("Error: {}", e);
+                std::process::exit(1);
+            }
+        }
+        Some(Commands::Stack { stack_command }) => {
+            if let Err(e) = stack_command.execute(&cli.path) {
                 eprintln!("Error: {}", e);
                 std::process::exit(1);
             }
@@ -1133,7 +1158,11 @@ async fn main() {
                 std::process::exit(1);
             }
         }
-        Some(Commands::Checkpoint { message, skip_tests, message_flag }) => {
+        Some(Commands::Checkpoint {
+            message,
+            skip_tests,
+            message_flag,
+        }) => {
             // 🦨 MCP compatibility: merge positional and flag arguments
             let effective_message = message.as_ref().or(message_flag.as_ref());
             if let Err(e) = checkpoint(effective_message.map(|s| s.as_str()), *skip_tests) {
@@ -1147,8 +1176,17 @@ async fn main() {
                 std::process::exit(1);
             }
         }
-        Some(Commands::Status { filter, installed, available }) => {
-            if let Err(e) = show_status(&cli.path, filter.as_ref().map(|s| s.as_str()), *installed, *available) {
+        Some(Commands::Status {
+            filter,
+            installed,
+            available,
+        }) => {
+            if let Err(e) = show_status(
+                &cli.path,
+                filter.as_ref().map(|s| s.as_str()),
+                *installed,
+                *available,
+            ) {
                 eprintln!("Error: {}", e);
                 std::process::exit(1);
             }
@@ -1196,7 +1234,12 @@ async fn main() {
                 std::process::exit(1);
             }
         }
-        Some(Commands::Lfmf { tool, lesson, repo, global }) => {
+        Some(Commands::Lfmf {
+            tool,
+            lesson,
+            repo,
+            global,
+        }) => {
             // Validate required fields
             let tool = match tool {
                 Some(t) => t,
@@ -1238,7 +1281,7 @@ async fn main() {
         }
         Some(Commands::Script { script_command }) => {
             use crate::commands::script::handle_script_command;
-            
+
             if let Err(e) = handle_script_command(script_command.clone()) {
                 eprintln!("Error: {}", e);
                 std::process::exit(1);

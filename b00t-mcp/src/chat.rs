@@ -1,7 +1,7 @@
 use once_cell::sync::OnceCell;
 use tracing::{error, info};
 
-use b00t_chat::{spawn_local_server, ChatInbox};
+use b00t_chat::{ChatInbox, spawn_local_server};
 
 #[derive(Clone, Debug)]
 pub struct ChatRuntime {

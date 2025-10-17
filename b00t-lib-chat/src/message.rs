@@ -21,7 +21,11 @@ pub struct ChatMessage {
 
 impl ChatMessage {
     /// Create a new chat message with the given parameters.
-    pub fn new(channel: impl Into<String>, sender: impl Into<String>, body: impl Into<String>) -> Self {
+    pub fn new(
+        channel: impl Into<String>,
+        sender: impl Into<String>,
+        body: impl Into<String>,
+    ) -> Self {
         Self {
             channel: channel.into(),
             sender: sender.into(),

@@ -10,9 +10,7 @@ use tracing::{info, Level};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    tracing_subscriber::fmt()
-        .with_max_level(Level::INFO)
-        .init();
+    tracing_subscriber::fmt().with_max_level(Level::INFO).init();
 
     let inbox = ChatInbox::new();
 
@@ -26,11 +24,7 @@ async fn main() -> anyhow::Result<()> {
             for step in 1..=3 {
                 let value: u32 = thread_rng().gen_range(10..50);
                 let body = format!("step {} update → {}", step, value);
-                let msg = ChatMessage::new(
-                    "mission.gamma",
-                    format!("{agent_name}.agent"),
-                    body,
-                );
+                let msg = ChatMessage::new("mission.gamma", format!("{agent_name}.agent"), body);
                 inbox.push(msg).await;
                 sleep(Duration::from_millis(50)).await;
             }

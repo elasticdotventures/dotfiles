@@ -46,13 +46,18 @@ pub enum McpCommands {
     Install {
         #[clap(help = "MCP server name")]
         name: String,
-        #[clap(help = "Installation target: claudecode, vscode, geminicli, dotmcpjson, roocode, stdout")]
+        #[clap(
+            help = "Installation target: claudecode, vscode, geminicli, dotmcpjson, roocode, stdout"
+        )]
         target: String,
         #[clap(long, help = "Install to repository-specific location (for geminicli)")]
         repo: bool,
         #[clap(long, help = "Install to user-global location (for geminicli)")]
         user: bool,
-        #[clap(long, help = "Select stdio method by command (for multi-source MCP configs)")]
+        #[clap(
+            long,
+            help = "Select stdio method by command (for multi-source MCP configs)"
+        )]
         stdio_command: Option<String>,
         #[clap(long, help = "Use httpstream method (for multi-source MCP configs)")]
         httpstream: bool,
@@ -117,7 +122,14 @@ pub enum RegistryAction {
 impl McpCommands {
     pub async fn execute_async(&self, path: &str) -> Result<()> {
         match self {
-            McpCommands::Register { name_or_json, hint: _, remove, dwiw, no_dwiw, command_args } => {
+            McpCommands::Register {
+                name_or_json,
+                hint: _,
+                remove,
+                dwiw,
+                no_dwiw,
+                command_args,
+            } => {
                 if *remove {
                     // Remove mode: delete the MCP server configuration
                     crate::mcp_remove(name_or_json, path)
@@ -142,25 +154,29 @@ impl McpCommands {
                             "name": server_name,
                             "command": command,
                             "args": args
-                        }).to_string();
+                        })
+                        .to_string();
 
                         crate::mcp_add_json(&json_str, actual_dwiw, path)
                     } else {
-                        anyhow::bail!("Invalid register command. Use JSON format or command format with --");
+                        anyhow::bail!(
+                            "Invalid register command. Use JSON format or command format with --"
+                        );
                     }
                 }
             }
-            McpCommands::List { json } => {
-                crate::mcp_list(path, *json)
-            }
-            McpCommands::Install { name, target, repo, user, stdio_command, httpstream } => {
+            McpCommands::List { json } => crate::mcp_list(path, *json),
+            McpCommands::Install {
+                name,
+                target,
+                repo,
+                user,
+                stdio_command,
+                httpstream,
+            } => {
                 match target.as_str() {
-                    "claudecode" | "claude" => {
-                        crate::claude_code_install_mcp(name, path)
-                    }
-                    "vscode" => {
-                        crate::vscode_install_mcp(name, path)
-                    }
+                    "claudecode" | "claude" => crate::claude_code_install_mcp(name, path),
+                    "vscode" => crate::vscode_install_mcp(name, path),
                     "geminicli" => {
                         // Determine installation location: default to repo if in git repo, otherwise user
                         let use_repo = if *repo && *user {
@@ -175,9 +191,12 @@ impl McpCommands {
                         };
                         crate::gemini_install_mcp(name, path, use_repo)
                     }
-                    "dotmcpjson" => {
-                        crate::dotmcpjson_install_mcp(name, path, stdio_command.as_deref(), *httpstream)
-                    }
+                    "dotmcpjson" => crate::dotmcpjson_install_mcp(
+                        name,
+                        path,
+                        stdio_command.as_deref(),
+                        *httpstream,
+                    ),
                     "roocode" => {
                         // Design with internal arrays so we can extend merge/symlink targets over time.
                         // Primary write target is .roo/mcp.json. Merge from .mcp.json if present.
@@ -202,13 +221,15 @@ impl McpCommands {
                     }
                 }
             }
-            McpCommands::Output { json, mcp_servers, servers } => {
+            McpCommands::Output {
+                json,
+                mcp_servers,
+                servers,
+            } => {
                 let use_mcp_servers_wrapper = !json && (*mcp_servers || !servers.contains(','));
                 crate::mcp_output(path, use_mcp_servers_wrapper, servers)
             }
-            McpCommands::Registry { action } => {
-                action.execute_async().await
-            }
+            McpCommands::Registry { action } => action.execute_async().await,
         }
     }
 }
@@ -219,79 +240,83 @@ impl RegistryAction {
 
         let mut registry = McpRegistry::default();
 
-            match self {
-                RegistryAction::List { json } => {
-                    let servers = registry.list();
+        match self {
+            RegistryAction::List { json } => {
+                let servers = registry.list();
 
-                    if *json {
-                        println!("{}", serde_json::to_string_pretty(&servers)?);
-                    } else {
-                        println!("📋 Registered MCP Servers:\n");
-                        for server in servers {
-                            println!("  {} ({})", server.name, server.id);
-                            println!("    Command: {} {}", server.config.command, server.config.args.join(" "));
-                            println!("    Tags: {}", server.tags.join(", "));
-                            println!("    Status: {:?}", server.metadata.health_status);
-                            println!();
-                        }
-                    }
-                    Ok(())
-                }
-                RegistryAction::Search { keyword, tag } => {
-                    let results = if let Some(tag_val) = tag {
-                        registry.search_by_tag(tag_val)
-                    } else if let Some(kw) = keyword {
-                        registry.search(kw)
-                    } else {
-                        anyhow::bail!("Must provide --keyword or --tag");
-                    };
-
-                    println!("🔍 Search Results ({} matches):\n", results.len());
-                    for server in results {
-                        println!("  {} - {}", server.id, server.description);
+                if *json {
+                    println!("{}", serde_json::to_string_pretty(&servers)?);
+                } else {
+                    println!("📋 Registered MCP Servers:\n");
+                    for server in servers {
+                        println!("  {} ({})", server.name, server.id);
+                        println!(
+                            "    Command: {} {}",
+                            server.config.command,
+                            server.config.args.join(" ")
+                        );
                         println!("    Tags: {}", server.tags.join(", "));
+                        println!("    Status: {:?}", server.metadata.health_status);
                         println!();
                     }
-                    Ok(())
                 }
-                RegistryAction::Get { server_id } => {
-                    if let Some(server) = registry.get(server_id) {
-                        println!("{}", serde_json::to_string_pretty(&server)?);
-                        Ok(())
-                    } else {
-                        anyhow::bail!("Server '{}' not found in registry", server_id)
-                    }
-                }
-                RegistryAction::InstallDeps { server_id } => {
-                    println!("📦 Installing dependencies for {}...", server_id);
-                    registry.install_dependencies(server_id).await?;
-                    println!("✅ Dependencies installed successfully");
-                    Ok(())
-                }
-                RegistryAction::SyncOfficial => {
-                    println!("🔄 Syncing with official MCP registry...");
-                    let count = registry.sync_official_registry().await?;
-                    println!("✅ Synced {} servers from official registry", count);
-                    Ok(())
-                }
-                RegistryAction::Discover => {
-                    println!("🔍 Auto-discovering MCP servers from system...");
-                    let count = registry.auto_discover().await?;
-                    println!("✅ Discovered {} MCP servers", count);
-                    Ok(())
-                }
-                RegistryAction::Export { output } => {
-                    let json = registry.export_to_mcp_format()?;
+                Ok(())
+            }
+            RegistryAction::Search { keyword, tag } => {
+                let results = if let Some(tag_val) = tag {
+                    registry.search_by_tag(tag_val)
+                } else if let Some(kw) = keyword {
+                    registry.search(kw)
+                } else {
+                    anyhow::bail!("Must provide --keyword or --tag");
+                };
 
-                    if let Some(path) = output {
-                        std::fs::write(path, &json)?;
-                        println!("✅ Registry exported to {}", path);
-                    } else {
-                        println!("{}", json);
-                    }
+                println!("🔍 Search Results ({} matches):\n", results.len());
+                for server in results {
+                    println!("  {} - {}", server.id, server.description);
+                    println!("    Tags: {}", server.tags.join(", "));
+                    println!();
+                }
+                Ok(())
+            }
+            RegistryAction::Get { server_id } => {
+                if let Some(server) = registry.get(server_id) {
+                    println!("{}", serde_json::to_string_pretty(&server)?);
                     Ok(())
+                } else {
+                    anyhow::bail!("Server '{}' not found in registry", server_id)
                 }
             }
+            RegistryAction::InstallDeps { server_id } => {
+                println!("📦 Installing dependencies for {}...", server_id);
+                registry.install_dependencies(server_id).await?;
+                println!("✅ Dependencies installed successfully");
+                Ok(())
+            }
+            RegistryAction::SyncOfficial => {
+                println!("🔄 Syncing with official MCP registry...");
+                let count = registry.sync_official_registry().await?;
+                println!("✅ Synced {} servers from official registry", count);
+                Ok(())
+            }
+            RegistryAction::Discover => {
+                println!("🔍 Auto-discovering MCP servers from system...");
+                let count = registry.auto_discover().await?;
+                println!("✅ Discovered {} MCP servers", count);
+                Ok(())
+            }
+            RegistryAction::Export { output } => {
+                let json = registry.export_to_mcp_format()?;
+
+                if let Some(path) = output {
+                    std::fs::write(path, &json)?;
+                    println!("✅ Registry exported to {}", path);
+                } else {
+                    println!("{}", json);
+                }
+                Ok(())
+            }
+        }
     }
 }
 
@@ -303,7 +328,8 @@ mod tests {
     fn test_mcp_commands_exist() {
         // Test with JSON format
         let register_cmd = McpCommands::Register {
-            name_or_json: r#"{"name":"test-server","command":"npx","args":["-y","@test/package"]}"#.to_string(),
+            name_or_json: r#"{"name":"test-server","command":"npx","args":["-y","@test/package"]}"#
+                .to_string(),
             hint: None,
             remove: false,
             dwiw: false,

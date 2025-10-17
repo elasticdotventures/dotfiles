@@ -5,12 +5,7 @@ use std::{
     time::Duration,
 };
 
-use tokio::{
-    fs,
-    io::AsyncWriteExt,
-    net::UnixStream,
-    time::timeout,
-};
+use tokio::{fs, io::AsyncWriteExt, net::UnixStream, time::timeout};
 use tracing::{debug, info, warn};
 
 use crate::{

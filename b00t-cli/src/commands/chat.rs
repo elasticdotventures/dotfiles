@@ -49,12 +49,17 @@ pub enum ChatCommands {
 impl ChatCommands {
     pub async fn execute(&self) -> Result<()> {
         match self {
-            ChatCommands::Send { channel, message, transport, sender, metadata } => {
-                self.send_message(channel, message, transport, sender, metadata).await
+            ChatCommands::Send {
+                channel,
+                message,
+                transport,
+                sender,
+                metadata,
+            } => {
+                self.send_message(channel, message, transport, sender, metadata)
+                    .await
             }
-            ChatCommands::Info => {
-                self.show_info().await
-            }
+            ChatCommands::Info => self.show_info().await,
         }
     }
 
@@ -80,17 +85,18 @@ impl ChatCommands {
             nats_url,
         };
 
-        let client = ChatClient::new(config)
-            .context("failed to initialize chat client")?;
+        let client = ChatClient::new(config).context("failed to initialize chat client")?;
 
         let resolved_sender = sender.clone().unwrap_or_else(|| whoami::username());
-        let resolved_channel = channel.clone().unwrap_or_else(|| format!("account.{}", whoami::username()));
+        let resolved_channel = channel
+            .clone()
+            .unwrap_or_else(|| format!("account.{}", whoami::username()));
 
         let mut chat_message = ChatMessage::new(&resolved_channel, resolved_sender, message);
 
         if let Some(meta_raw) = metadata {
-            let meta: Value = serde_json::from_str(meta_raw)
-                .context("metadata must be valid JSON")?;
+            let meta: Value =
+                serde_json::from_str(meta_raw).context("metadata must be valid JSON")?;
             chat_message.metadata = meta;
         }
 
